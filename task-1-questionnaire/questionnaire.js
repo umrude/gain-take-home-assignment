@@ -309,7 +309,7 @@
   function buildModal() {
     // TODO: dialog markup — overlay, close button, progress bar, step body, back/next footer.
     // Use role="dialog" aria-modal="true", trap focus, close on Esc/overlay click.
-    var modal = el('div', { class: NS + '-modal', 'data-gain': NS, role: 'dialog', 'aria-modal': 'true', hidden: '' });
+    var modal = el('div', { id: NS + '-modal', class: NS + '-modal', 'data-gain': NS, role: 'dialog', 'aria-modal': 'true', hidden: '' });
     document.body.appendChild(modal);
     return modal;
   }
@@ -319,11 +319,40 @@
     // i < state.step  -> .is-complete (blue + green check)
     // i === state.step -> .is-active (blue, bold label)
     // i > state.step  -> .is-next (white)
+    var children = STEPS.map(function (step, i) {
+      var item = el('div', { class: NS + '-progress__item' }, [
+        el('div', { class: NS + '-progress__item__label', text: step.label }),
+        el('div', { class: NS + '-progress__item__connector' })
+      ]);
+      if (i < state.step) {
+        item.classList.add(NS + '-progress__item--complete');
+      } else if (i === state.step) {
+        item.classList.add(NS + '-progress__item--active');
+      } else {
+        item.classList.add(NS + '-progress__item--next');
+      }
+
+      return item;
+    });
+    var progress = el('div', { class: NS + '-progress' }, children);
+    root.modal.appendChild(progress);
+    return progress;
   }
 
   function renderQuestion() {
     // TODO: render optionsFor(STEPS[state.step].key) as checkboxes (multi) or radios (single),
     // bind changes into state.answers, and toggle the Next button with isStepAnswered().
+    var question = el('div', { class: NS + '-question' }, [
+      el('h3', { class: NS + '-question__title', text: STEPS[state.step].title }),
+      el('div', { class: NS + '-question__options' }, optionsFor(STEPS[state.step].key).map(function (option) {
+        return el('label', { class: NS + '-question__option' }, [
+          el('input', { type: 'checkbox', name: STEPS[state.step].key, value: option.value }),
+          el('span', { class: NS + '-question__option__label', text: option.label })
+        ]);
+      }))
+    ]);
+    root.modal.appendChild(question);
+    return question;
   }
 
   function renderResults() {
@@ -332,7 +361,44 @@
     // case study cards with "Exact match"/"Related" labels or the "none" message + WORK_URL,
     // article cards, and a summary of answers.services / answers.industries with
     // "Change" links that call goTo(0) / goTo(1).
-    void r;
+    var results = el('div', { class: NS + '-results' }, [
+      el('h3', { class: NS + '-results__title', text: r.heading }),
+      el('div', { class: NS + '-results__email' }, [
+        el('p', { class: NS + '-results__email__text', text: r.emailTop ? 'We’ll send you an email with your results.' : 'We’ll send you an email with your results and a link to the case studies.' }),
+        el('a', { class: NS + '-results__email__link', href: 'mailto:' + data.email, text: data.email })
+      ]),
+      el('div', { class: NS + '-results__case-studies' }, r.caseStudies.map(function (c) {
+        return el('div', { class: NS + '-results__case-study' }, [
+          el('h4', { class: NS + '-results__case-study__title', text: c.item.title }),
+          el('p', { class: NS + '-results__case-study__description', text: c.item.description }),
+          el('a', { class: NS + '-results__case-study__link', href: c.item.url, text: 'View case study' })
+        ]);
+      })),
+      el('div', { class: NS + '-results__articles' }, r.articles.map(function (a) {
+        return el('div', { class: NS + '-results__article' }, [
+          el('h4', { class: NS + '-results__article__title', text: a.title }),
+          el('p', { class: NS + '-results__article__description', text: a.description }),
+          el('a', { class: NS + '-results__article__link', href: a.url, text: 'View article' })
+        ]);
+      })),
+      el('div', { class: NS + '-results__summary' }, [
+        el('h4', { class: NS + '-results__summary__title', text: 'Summary of answers' }),
+        el('ul', { class: NS + '-results__summary__list' }, state.answers.services.map(function (s) {
+          return el('li', { class: NS + '-results__summary__item' }, [
+            el('span', { class: NS + '-results__summary__item__label', text: s }),
+            el('a', { class: NS + '-results__summary__item__link', href: 'javascript:void(0)', text: 'Change' })
+          ]);
+        })),
+        el('ul', { class: NS + '-results__summary__list' }, state.answers.industries.map(function (i) {
+          return el('li', { class: NS + '-results__summary__item' }, [
+            el('span', { class: NS + '-results__summary__item__label', text: i }),
+            el('a', { class: NS + '-results__summary__item__link', href: 'javascript:void(0)', text: 'Change' })
+          ]);
+        }))
+      ])
+    ]);
+    root.modal.appendChild(results);
+    return results;
   }
 
   function render() {

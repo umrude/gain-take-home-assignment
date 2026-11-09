@@ -5,18 +5,9 @@
   --gq-green: #3fa34d;
   --gq-grey: #d0d0d0;
 
-  /* Pixel button (Figure 1) — TODO: sample exact colours from the figure */
-  --gq-btn-bg: #5a9a3c;
-  --gq-btn-bg-hover: #4c8732;
-  --gq-btn-bg-pressed: #3e6f28;
-  --gq-btn-bg-disabled: #e6dcdc;
-  --gq-btn-text: #fff;
-  --gq-btn-text-disabled: #b8aaaa;
-  --gq-btn-outline: #1f2a1a;
-  --gq-btn-highlight: rgba(255, 255, 255, .25); /* top strip */
-  --gq-btn-shade: rgba(0, 0, 0, .3);            /* bottom shadow */
-  --gq-btn-focus: #6a8cff;
-  --gq-px: 3px;                                  /* one "pixel" of the stepped corner */
+  /* Pixel button (Figure 1) */
+  --gq-px: 3px;          /* one "pixel": outline width, corner step, strip and shadow height */
+  --gq-btn-focus: #7b9cff;
 }
 
 html.gq-lock { overflow: hidden; }
@@ -36,33 +27,91 @@ html.gq-lock { overflow: hidden; }
 
 /* ---------------------------------------------------------------- pixel button */
 /*
- * Approach (TODO):
- * - Stepped corners: clip-path polygon that notches each corner by var(--gq-px).
- * - Dark outline that follows the notches: stack box-shadows, or use a wrapper
- *   background + inner element inset by --gq-px (clip-path cuts normal borders).
- * - Top strip / bottom shadow: inset box-shadows (0 var(--gq-px) / 0 calc(-1 * var(--gq-px))).
- * - Pressed: drop both inset shadows so it looks pushed in.
- * - Focus: blue outline outside the dark outline (:focus-visible only).
+ * One button, five states. Everything is drawn with a single box-shadow list, so each
+ * state only swaps the custom properties below:
+ *
+ * - Dark outline with stepped corners: four outer shadows, each offset by one pixel
+ *   (up, down, left, right) with no blur or spread. Each one shows as a strip along a
+ *   single edge, and the corners stay uncovered, which gives the pixel-art notch.
+ * - Lighter strip along the top / darker shadow along the bottom: two inset shadows.
+ * - Pressed: both inset colours become the fill colour, so it looks pushed in.
+ * - Focus: a square blue `outline` sitting just outside the dark outline.
+ *   `outline` doesn't change the layout, and (unlike a shadow) it isn't removed in forced-colors mode.
  */
 .gq-btn {
+  --bg: #5c9b3a;      /* fill */
+  --strip: #7dbf52;   /* top strip */
+  --shade: #3f6e28;   /* bottom shadow */
+  --edge: #1b1f1a;    /* dark outline */
+  --fg: #fff;         /* label */
+
   appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  min-height: 40px;
+  margin: var(--gq-px); /* room for the outer outline shadows */
+  padding: 8px 20px;
   border: 0;
-  padding: 10px 24px;
+  border-radius: 0;
   font: inherit;
-  font-weight: 700;
-  letter-spacing: .08em;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: .1em;
   text-transform: uppercase;
-  color: var(--gq-btn-text);
-  background: var(--gq-btn-bg);
+  color: var(--fg);
+  background: var(--bg);
+  box-shadow:
+    inset 0 var(--gq-px) 0 0 var(--strip),
+    inset 0 calc(-1 * var(--gq-px)) 0 0 var(--shade),
+    0 calc(-1 * var(--gq-px)) 0 0 var(--edge),
+    0 var(--gq-px) 0 0 var(--edge),
+    calc(-1 * var(--gq-px)) 0 0 0 var(--edge),
+    var(--gq-px) 0 0 0 var(--edge);
   cursor: pointer;
+  user-select: none;
 }
-.gq-btn:hover { background: var(--gq-btn-bg-hover); }
-.gq-btn:focus-visible { /* TODO */ }
-.gq-btn:active { background: var(--gq-btn-bg-pressed); }
+
+/* Hover: darker fill, strip and shadow stay */
+.gq-btn:hover:not(:disabled) {
+  --bg: #4a8030;
+  --strip: #649f43;
+  --shade: #335a21;
+}
+
+/* Focus (keyboard only): hover colours + blue outline outside the dark one */
+.gq-btn:focus-visible {
+  --bg: #4a8030;
+  --strip: #649f43;
+  --shade: #335a21;
+  outline: 2px solid var(--gq-btn-focus);
+  outline-offset: var(--gq-px);
+}
+.gq-btn:focus:not(:focus-visible) { outline: none; }
+
+/* Pressed: darkest fill, no top strip or bottom shadow, so it looks pushed in */
+.gq-btn:active:not(:disabled) {
+  --bg: #3c6627;
+  --strip: var(--bg);
+  --shade: var(--bg);
+}
+
+/* Disabled: washed out, muted outline, no interaction */
 .gq-btn:disabled {
-  background: var(--gq-btn-bg-disabled);
-  color: var(--gq-btn-text-disabled);
+  --bg: #e8dfdf;
+  --strip: #f6f0f0;
+  --shade: #d3c7c7;
+  --edge: #b9adad;
+  --fg: #bcaeae;
   cursor: not-allowed;
+}
+
+/* Windows high contrast removes box-shadows; keep a visible border */
+@media (forced-colors: active) {
+  .gq-btn { border: 2px solid ButtonText; }
 }
 
 /* ---------------------------------------------------------------- modal */
