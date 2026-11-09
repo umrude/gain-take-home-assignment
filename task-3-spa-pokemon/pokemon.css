@@ -3,10 +3,10 @@
 /*
  * Anti-flash: hide every original card's own content until JS marks it ready.
  * Because this lives in <head>, it applies before the JS even runs.
- * TODO: replace `.ARTICLE-CARD` with the real card selector (same as SELECTORS.card).
+ * Same selector as CARD in pokemon.js.
  */
-.ARTICLE-CARD > :not(.gp-card) { display: none !important; }
-.ARTICLE-CARD:not([data-gp-ready]) { visibility: hidden; } /* keeps layout, no flash */
+[data-behaviour="listing"] .listing-box > :not(.gp-card) { display: none !important; }
+[data-behaviour="listing"] .listing-box:not([data-gp-ready]) { visibility: hidden; } /* keeps layout, no flash */
 
 /* TODO: hide "Filter by Tags" wrapper */
 

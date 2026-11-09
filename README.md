@@ -22,9 +22,20 @@ Each task has two files:
 ## Design notes
 
 - **Safe to re-run:** every script stores its instance on `window` (for example `window.__gainQuestionnaire`). When it runs again, it calls the previous instance's `destroy()` first. That removes the elements it added, its listeners (through one `AbortController`) and its observers, then the script builds everything again. Running it twice gives the same result as running it once.
-- **Works before the page has loaded (bonus):** `waitFor(selector)` uses a `MutationObserver` on `document.documentElement`, so the scripts can run at `document-start`.
+- **Works before the page has loaded (bonus):** `waitFor(finder)` takes a selector or a function. It uses a `MutationObserver` on `document.documentElement` and checks again at most once per frame, so the scripts can run at `document-start`. The script starts only once everything it reads from the page is there.
 - **Standalone files:** each JS file contains the small helpers it needs, so you can paste it on its own with nothing else.
-- **One place for selectors:** the selectors for the live site are kept in a `SELECTORS` object at the top of each file. If the site's markup changes, only that object needs updating.
+- **Finding elements without IDs:** the site's sections are generic `wp-block-group` wrappers with no IDs. Instead of selectors that would break easily, a `FIND` object at the top of each file has one small function per part of the page. Each function anchors on something stable, then searches inside it:
+  - the `<h1>`, for the hero
+  - the labels the brief names: "Solutions", "Our Sectors", "Work", "Insights"
+  - component classes: `content-card`, `site-navigation__*`
+  - the theme's `data-behaviour` hooks, on the blog
+
+  If the site's markup changes, only `FIND` needs updating.
+- **Quirks of the live site the scripts handle:**
+  - The footer email is hidden by Cloudflare's email protection. The scripts decode `data-cfemail` themselves, so the email can be read before Cloudflare's script runs.
+  - Images are lazy-loaded through ShortPixel. Until an image loads, its real URL is inside the placeholder SVG's `data-u` attribute.
+  - Work card industry tags don't always match the "Our Sectors" names ("Tech & Telcoms" vs "Tech & Telco"). Tags are mapped to the closest sector name.
+  - The Insights cards have no dates. Slider order (newest first) is used as "latest".
 
 ## Notes / issues encountered
 
@@ -39,9 +50,9 @@ Each task has two files:
 - [ ] Uses Flex or Grid CSS
 - [ ] Works on desktop, tablet and mobile (down to 375px)
 - [ ] Nothing is hardcoded: options, case studies, articles and the email are read from the homepage
-- [ ] New section under the hero: header, paragraph and button
+- [x] New section under the hero: header, paragraph and button
 - [ ] Button UI states match Figure 1 (CSS only)
-- [ ] Button opens a modal
+- [x] Button opens a modal
 - [ ] 4 question steps + a results step
 - [ ] Service options match the "Solutions" menu and industry options match "Our Sectors"
 - [ ] Questions 1 and 2 allow more than one answer, questions 3 and 4 allow one

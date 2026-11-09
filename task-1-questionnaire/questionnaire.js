@@ -14,14 +14,38 @@
     window[INSTANCE_KEY].destroy();
   }
 
-  // TODO: fill these in after inspecting the live homepage.
-  var SELECTORS = {
-    hero: '', //                 first section with the main heading
-    solutionsMenuItems: '', //   links inside the "Solutions" nav menu (name + description)
-    sectorItems: '', //          industries in the "Our Sectors" section
-    workSlides: '', //           case study slides in the "Work" slider
-    insightsSlides: '', //       article slides in the "Insights" slider
-    footerEmail: '' //           mailto link in the footer
+  /*
+   * Where things live on the page. The layout wrappers are generic (`wp-block-group`),
+   * so each finder anchors on something stable — the <h1>, a visible label the brief
+   * names ("Solutions", "Our Sectors", "Work", "Insights"), or a component class
+   * (`content-card`, `site-navigation__*`) — then searches inside it.
+   * Each returns the element(s) or null, so waitFor() can poll them.
+   */
+  var FIND = {
+    // Top-level block (direct child of <main>) that holds the <h1>.
+    hero: function () {
+      var h1 = document.querySelector('main h1');
+      return h1 && topLevelBlock(h1);
+    },
+    // "Solutions" item in the top nav -> its submenu links (title + description).
+    solutionsLinks: function () {
+      var item = closestOf(findByText('.site-navigation__link', 'Solutions'), '.site-navigation__item');
+      var links = item && item.querySelectorAll('.site-navigation__submenu-link');
+      return links && links.length ? links : null;
+    },
+    // "Our Sectors" is a <p> label, not a heading; the sector links sit in the same columns block.
+    sectorLinks: function () {
+      var block = closestOf(findByText('main p', 'Our Sectors'), '.wp-block-columns');
+      var links = block && block.querySelectorAll('a.wp-block-button__link');
+      return links && links.length ? links : null;
+    },
+    // First content slider after the "Work" / "Insights" heading.
+    workCards: function () { return cardsAfterHeading('Work'); },
+    insightCards: function () { return cardsAfterHeading('Insights'); },
+    // Footer email. Cloudflare obfuscates it (`[email protected]`) until its own script runs.
+    footerEmail: function () {
+      return document.querySelector('footer a[href^="mailto:"], footer [data-cfemail], footer a[href*="/email-protection#"]');
+    }
   };
 
   // Questions 3 & 4 are defined by the brief, so they are not scraped.
@@ -35,17 +59,100 @@
 
   /* ---------------------------------------------------------------- helpers */
 
-  // Resolves once `selector` exists. Works at document-start (observes <html>).
-  function waitFor(selector, timeout) {
+  /**
+   * Resolves with the first truthy result of `finder` (a function, or a CSS selector).
+   * Works at document-start: observes <html> and re-checks at most once per frame.
+   */
+  function waitFor(finder, timeout) {
+    var check = typeof finder === 'function' ? finder : function () { return document.querySelector(finder); };
     return new Promise(function (resolve, reject) {
-      var found = document.querySelector(selector);
+      var found = check();
       if (found) return resolve(found);
+      var queued = false;
       var obs = new MutationObserver(function () {
-        var el = document.querySelector(selector);
-        if (el) { obs.disconnect(); resolve(el); }
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(function () {
+          queued = false;
+          var result = check();
+          if (result) { obs.disconnect(); clearTimeout(timer); resolve(result); }
+        });
       });
       obs.observe(document.documentElement, { childList: true, subtree: true });
-      setTimeout(function () { obs.disconnect(); reject(new Error('waitFor timeout: ' + selector)); }, timeout || 15000);
+      var timer = setTimeout(function () { obs.disconnect(); reject(new Error('waitFor timeout')); }, timeout || 15000);
+      controller.signal.addEventListener('abort', function () { obs.disconnect(); clearTimeout(timer); });
+    });
+  }
+
+  // Lowercase + collapse whitespace, so "Our  Sectors\n" === "our sectors".
+  function norm(s) { return (s || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+
+  // First element matching `selector` whose text is exactly `text` (normalised).
+  function findByText(selector, text) {
+    return Array.prototype.find.call(document.querySelectorAll(selector), function (n) {
+      return norm(n.textContent) === norm(text);
+    }) || null;
+  }
+
+  function closestOf(node, selector) { return node ? node.closest(selector) : null; }
+
+  // Walk up to the ancestor that is a direct child of <main> (one page "section").
+  function topLevelBlock(node) {
+    var main = node.closest('main');
+    while (node && node.parentElement && node.parentElement !== main) node = node.parentElement;
+    return main ? node : null;
+  }
+
+  // Cards in the first `.content-slider` that comes after the heading labelled `label`.
+  function cardsAfterHeading(label) {
+    var heading = findByText('main h2', label);
+    if (!heading) return null;
+    var slider = Array.prototype.find.call(document.querySelectorAll('.content-slider'), function (s) {
+      return heading.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING;
+    });
+    var cards = slider && slider.querySelectorAll('.content-card');
+    return cards && cards.length ? cards : null;
+  }
+
+  // Real image URL. ShortPixel lazy-loads: until then `src` is an SVG placeholder whose
+  // `data-u` attribute holds the encoded real URL.
+  function imageUrl(img) {
+    if (!img) return '';
+    var src = img.currentSrc || img.src || '';
+    if (src.indexOf('data:image/svg+xml;base64,') !== 0) return src;
+    try {
+      var m = atob(src.split(',')[1]).match(/data-u="([^"]+)"/);
+      return m ? decodeURIComponent(m[1]) : '';
+    } catch (e) { return ''; }
+  }
+
+  // Cloudflare email obfuscation: first byte is the XOR key for the rest.
+  function decodeCfEmail(hex) {
+    var key = parseInt(hex.substr(0, 2), 16), out = '';
+    for (var i = 2; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.substr(i, 2), 16) ^ key);
+    return out;
+  }
+
+  // Card tags and the sector list don't always agree ("Tech & Telcoms" vs "Tech & Telco"),
+  // so map a tag onto the sector whose name it equals or starts with.
+  function canonicalLabel(raw, labels) {
+    var n = norm(raw);
+    return labels.find(function (l) { var m = norm(l); return n === m || n.indexOf(m) === 0 || m.indexOf(n) === 0; }) || raw.trim();
+  }
+
+  function textOf(root, selector) {
+    var n = root.querySelector(selector);
+    return n ? n.textContent.replace(/\s+/g, ' ').trim() : '';
+  }
+
+  // Slider libraries clone slides for looping; keep the first card per URL.
+  function uniqueCards(cards) {
+    var seen = {};
+    return Array.prototype.filter.call(cards || [], function (c) {
+      var a = c.querySelector('.content-card__link');
+      var key = a ? a.href : '';
+      if (!key || seen[key]) return false;
+      return (seen[key] = true);
     });
   }
 
@@ -62,34 +169,62 @@
 
   /* ---------------------------------------------------------------- scraping */
 
-  /** @returns {{name: string, description: string}[]} */
+  /** @returns {{name: string, description: string, url: string}[]} */
   function getServices() {
-    // TODO: read from SELECTORS.solutionsMenuItems
-    return [];
+    return Array.prototype.map.call(FIND.solutionsLinks() || [], function (a) {
+      return {
+        name: textOf(a, '.site-navigation__submenu-link-title'),
+        description: textOf(a, '.site-navigation__submenu-link-description'),
+        url: a.href
+      };
+    });
   }
 
   /** @returns {string[]} */
   function getIndustries() {
-    // TODO: read from SELECTORS.sectorItems
-    return [];
+    return Array.prototype.map.call(FIND.sectorLinks() || [], function (a) {
+      return a.textContent.replace(/\s+/g, ' ').trim();
+    });
   }
 
-  /** @returns {{title: string, url: string, image: string, service: string, industry: string}[]} in slider order */
-  function getCaseStudies() {
-    // TODO: read from SELECTORS.workSlides (watch out for cloned slides from the slider lib)
-    return [];
+  /**
+   * Work cards carry two tags: [service, industry].
+   * @returns {{title: string, url: string, image: string, service: string, industry: string}[]} in slider order
+   */
+  function getCaseStudies(industries) {
+    return uniqueCards(FIND.workCards()).map(function (card) {
+      var tags = Array.prototype.map.call(card.querySelectorAll('.content-tags li'), function (li) { return li.textContent.trim(); });
+      return {
+        title: textOf(card, '.content-card__title'),
+        url: card.querySelector('.content-card__link').href,
+        image: imageUrl(card.querySelector('img')),
+        service: tags[0] || '',
+        industry: tags[1] ? canonicalLabel(tags[1], industries) : ''
+      };
+    });
   }
 
-  /** @returns {{title: string, url: string, image: string, date?: string}[]} latest first */
+  /**
+   * The Insights slider is ordered newest first (cards have no dates), so slider order = latest.
+   * @returns {{title: string, url: string, image: string}[]}
+   */
   function getArticles() {
-    // TODO: read from SELECTORS.insightsSlides
-    return [];
+    return uniqueCards(FIND.insightCards()).map(function (card) {
+      return {
+        title: textOf(card, '.content-card__title'),
+        url: card.querySelector('.content-card__link').href,
+        image: imageUrl(card.querySelector('img'))
+      };
+    });
   }
 
   /** @returns {string} */
   function getEmail() {
-    // TODO: read from SELECTORS.footerEmail
-    return '';
+    var node = FIND.footerEmail();
+    if (!node) return '';
+    if (/^mailto:/i.test(node.getAttribute('href') || '')) return node.getAttribute('href').replace(/^mailto:/i, '').split('?')[0];
+    var hex = node.getAttribute('data-cfemail') || (node.getAttribute('href') || '').split('#')[1];
+    return hex ? decodeCfEmail(hex) : '';
   }
 
   /* ---------------------------------------------------------------- state */
@@ -227,13 +362,22 @@
   /* ---------------------------------------------------------------- lifecycle */
 
   function scrape() {
+    var industries = getIndustries();
     return {
       services: getServices(),
-      industries: getIndustries(),
-      caseStudies: getCaseStudies(),
+      industries: industries,
+      caseStudies: getCaseStudies(industries),
       articles: getArticles(),
       email: getEmail()
     };
+  }
+
+  // Everything the questionnaire needs, or null while any part is still missing.
+  function pageReady() {
+    var hero = FIND.hero();
+    var ready = hero && FIND.solutionsLinks() && FIND.sectorLinks() &&
+      FIND.workCards() && FIND.insightCards() && FIND.footerEmail();
+    return ready ? hero : null;
   }
 
   function destroy() {
@@ -243,10 +387,15 @@
     delete window[INSTANCE_KEY];
   }
 
-  window[INSTANCE_KEY] = { destroy: destroy, state: state, computeResults: computeResults };
+  // Exposed for debugging in the console, e.g. __gainQuestionnaire.data
+  window[INSTANCE_KEY] = {
+    destroy: destroy,
+    state: state,
+    computeResults: computeResults,
+    get data() { return data; }
+  };
 
-  // TODO: also wait for the sliders/footer if they render late.
-  waitFor(SELECTORS.hero || 'body > *')
+  waitFor(pageReady)
     .then(function (hero) {
       if (controller.signal.aborted) return; // destroyed while waiting
       data = scrape();

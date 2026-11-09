@@ -16,10 +16,29 @@
     window[INSTANCE_KEY].destroy();
   }
 
-  // TODO: fill these in after inspecting the live homepage.
-  var SELECTORS = {
-    workSlides: '', //          case study slides in the "Work" slider
-    solutionsMenuItems: '' //   "Solutions" nav links (service name + description)
+  /*
+   * Where things live on the page. Layout wrappers are generic (`wp-block-group`), so each
+   * finder anchors on a visible label ("Work", "Solutions") or a component class
+   * (`content-card`, `site-navigation__*`). Returns the element(s) or null.
+   */
+  var FIND = {
+    // Cards in the first content slider after the "Work" heading.
+    workCards: function () {
+      var heading = findByText('main h2', 'Work');
+      if (!heading) return null;
+      var slider = Array.prototype.find.call(document.querySelectorAll('.content-slider'), function (s) {
+        return heading.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING;
+      });
+      var cards = slider && slider.querySelectorAll('.content-card');
+      return cards && cards.length ? cards : null;
+    },
+    // "Solutions" item in the top nav -> its submenu links (title + description).
+    solutionsLinks: function () {
+      var link = findByText('.site-navigation__link', 'Solutions');
+      var item = link && link.closest('.site-navigation__item');
+      var links = item && item.querySelectorAll('.site-navigation__submenu-link');
+      return links && links.length ? links : null;
+    }
   };
 
   var controller = new AbortController();
@@ -29,31 +48,88 @@
 
   /* ---------------------------------------------------------------- helpers */
 
-  function waitFor(selector, timeout) {
+  /**
+   * Resolves with the first truthy result of `finder` (a function, or a CSS selector).
+   * Works at document-start: observes <html> and re-checks at most once per frame.
+   */
+  function waitFor(finder, timeout) {
+    var check = typeof finder === 'function' ? finder : function () { return document.querySelector(finder); };
     return new Promise(function (resolve, reject) {
-      var found = document.querySelector(selector);
+      var found = check();
       if (found) return resolve(found);
+      var queued = false;
       var obs = new MutationObserver(function () {
-        var el = document.querySelector(selector);
-        if (el) { obs.disconnect(); resolve(el); }
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(function () {
+          queued = false;
+          var result = check();
+          if (result) { obs.disconnect(); clearTimeout(timer); resolve(result); }
+        });
       });
       obs.observe(document.documentElement, { childList: true, subtree: true });
-      setTimeout(function () { obs.disconnect(); reject(new Error('waitFor timeout: ' + selector)); }, timeout || 15000);
+      var timer = setTimeout(function () { obs.disconnect(); reject(new Error('waitFor timeout')); }, timeout || 15000);
+      controller.signal.addEventListener('abort', function () { obs.disconnect(); clearTimeout(timer); });
     });
+  }
+
+  function norm(s) { return (s || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+
+  // First element matching `selector` whose text is exactly `text` (normalised).
+  function findByText(selector, text) {
+    return Array.prototype.find.call(document.querySelectorAll(selector), function (n) {
+      return norm(n.textContent) === norm(text);
+    }) || null;
+  }
+
+  function textOf(root, selector) {
+    var n = root.querySelector(selector);
+    return n ? n.textContent.replace(/\s+/g, ' ').trim() : '';
+  }
+
+  // Real image URL. ShortPixel lazy-loads: until then `src` is an SVG placeholder whose
+  // `data-u` attribute holds the encoded real URL.
+  function imageUrl(img) {
+    if (!img) return '';
+    var src = img.currentSrc || img.src || '';
+    if (src.indexOf('data:image/svg+xml;base64,') !== 0) return src;
+    try {
+      var m = atob(src.split(',')[1]).match(/data-u="([^"]+)"/);
+      return m ? decodeURIComponent(m[1]) : '';
+    } catch (e) { return ''; }
   }
 
   /* ---------------------------------------------------------------- scraping */
 
-  /** @returns {{title, url, image, service, industry}[]} one per unique case study, slider order */
+  /**
+   * Work cards carry two tags: [service, industry]. Slider clones are dropped by URL.
+   * @returns {{title, url, image, service, industry}[]} one per unique case study, slider order
+   */
   function getCaseStudies() {
-    // TODO: read SELECTORS.workSlides, dedupe slider clones by url
-    return [];
+    var seen = {};
+    return Array.prototype.reduce.call(FIND.workCards() || [], function (list, card) {
+      var link = card.querySelector('.content-card__link');
+      if (!link || seen[link.href]) return list;
+      seen[link.href] = true;
+      var tags = Array.prototype.map.call(card.querySelectorAll('.content-tags li'), function (li) { return li.textContent.trim(); });
+      list.push({
+        title: textOf(card, '.content-card__title'),
+        url: link.href,
+        image: imageUrl(card.querySelector('img')),
+        service: tags[0] || '',
+        industry: tags[1] || ''
+      });
+      return list;
+    }, []);
   }
 
-  /** @returns {Object<string, string>} service name -> description */
+  /** @returns {Object<string, string>} normalised service name -> description */
   function getServiceDescriptions() {
-    // TODO: read SELECTORS.solutionsMenuItems
-    return {};
+    var map = {};
+    Array.prototype.forEach.call(FIND.solutionsLinks() || [], function (a) {
+      map[norm(textOf(a, '.site-navigation__submenu-link-title'))] = textOf(a, '.site-navigation__submenu-link-description');
+    });
+    return map;
   }
 
   /* ---------------------------------------------------------------- build */
@@ -63,7 +139,7 @@
 
   function buildSlide(cs, descriptions) {
     // TODO: image, title, industry tag (button with tooltip "service · industry"),
-    // service description, "View case study" link.
+    // service description (descriptions[norm(cs.service)]), "View case study" link.
     var slide = document.createElement('article');
     slide.className = NS + '-slide';
     void cs; void descriptions;
@@ -129,7 +205,7 @@
 
   window[INSTANCE_KEY] = { destroy: destroy, open: function () { setOpen(true); }, close: function () { setOpen(false); } };
 
-  waitFor(SELECTORS.workSlides || 'footer')
+  waitFor(function () { return FIND.workCards() && FIND.solutionsLinks(); })
     .then(function () {
       if (controller.signal.aborted) return;
       build(getCaseStudies(), getServiceDescriptions());

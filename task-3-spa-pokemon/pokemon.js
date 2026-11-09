@@ -28,13 +28,22 @@
     window[INSTANCE_KEY].destroy();
   }
 
-  // TODO: fill these in after inspecting the live blog page.
-  var SELECTORS = {
-    list: '', //            React container of the article cards
-    card: '', //            one article card
-    tagsFilter: '', //      "Filter by Tags" dropdown wrapper
-    capabilityFilter: '', // "Filter by Capability" dropdown wrapper
-    pagination: '' //       page number links
+  /*
+   * Where things live on the page. `data-behaviour` attributes are the theme's JS hooks,
+   * so they're more stable than layout classes. The filters are rendered by React into
+   * `.listing-filters`, so the dropdowns are found by their visible label text.
+   */
+  var CARD = '[data-behaviour="listing"] .listing-box'; // also used in pokemon.css
+  var FIND = {
+    // Wraps filters + list; React may swap the <ul> inside, so observe this instead.
+    root: function () { return document.getElementById('archive-listing'); },
+    list: function () { return document.querySelector('[data-behaviour="listing"]'); },
+    cards: function () { return document.querySelectorAll(CARD); },
+    filters: function () { return document.querySelector('[data-behaviour="listing-filters"]'); },
+    // TODO: confirm in the browser which wrapper holds each dropdown (label + select/button).
+    tagsFilter: function () { return filterByLabel('Filter by Tags'); },
+    capabilityFilter: function () { return filterByLabel('Filter by Capability'); }
+    // TODO: pagination — rendered by React; check its markup and the page URL format.
   };
 
   var controller = new AbortController();
@@ -45,17 +54,42 @@
 
   /* ---------------------------------------------------------------- helpers */
 
-  function waitFor(selector, timeout) {
+  /**
+   * Resolves with the first truthy result of `finder` (a function, or a CSS selector).
+   * Works at document-start: observes <html> and re-checks at most once per frame.
+   */
+  function waitFor(finder, timeout) {
+    var check = typeof finder === 'function' ? finder : function () { return document.querySelector(finder); };
     return new Promise(function (resolve, reject) {
-      var found = document.querySelector(selector);
+      var found = check();
       if (found) return resolve(found);
+      var queued = false;
       var obs = new MutationObserver(function () {
-        var el = document.querySelector(selector);
-        if (el) { obs.disconnect(); resolve(el); }
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(function () {
+          queued = false;
+          var result = check();
+          if (result) { obs.disconnect(); clearTimeout(timer); resolve(result); }
+        });
       });
       obs.observe(document.documentElement, { childList: true, subtree: true });
-      setTimeout(function () { obs.disconnect(); reject(new Error('waitFor timeout: ' + selector)); }, timeout || 15000);
+      var timer = setTimeout(function () { obs.disconnect(); reject(new Error('waitFor timeout')); }, timeout || 15000);
+      controller.signal.addEventListener('abort', function () { obs.disconnect(); clearTimeout(timer); });
     });
+  }
+
+  function norm(s) { return (s || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+
+  // Smallest element inside the filters whose text starts with `label`, then up to its wrapper.
+  function filterByLabel(label) {
+    var filters = FIND.filters();
+    if (!filters) return null;
+    var match = Array.prototype.filter.call(filters.querySelectorAll('*'), function (n) {
+      return norm(n.textContent).indexOf(norm(label)) === 0;
+    }).pop(); // deepest match = the label itself
+    // TODO: adjust once the dropdown markup is known (e.g. closest('.listing-filters__filter')).
+    return match ? match.parentElement : null;
   }
 
   /* ---------------------------------------------------------------- PokeAPI (cached) */
@@ -107,8 +141,7 @@
   }
 
   function processList() {
-    var cards = document.querySelectorAll(SELECTORS.card);
-    cards.forEach(renderCard);
+    FIND.cards().forEach(renderCard);
   }
 
   function applyTypeFilter() {
@@ -119,7 +152,7 @@
   /* ---------------------------------------------------------------- filters */
 
   function setupFilters() {
-    // TODO: hide SELECTORS.tagsFilter (CSS), replace capability dropdown contents with
+    // TODO: hide FIND.tagsFilter() (add a class), replace FIND.capabilityFilter() contents with
     // our own <select> of TYPES ("Filter by type"), bind change -> setSelectedType.
     void TYPES;
   }
@@ -171,14 +204,14 @@
 
   window[INSTANCE_KEY] = { destroy: destroy };
 
-  waitFor(SELECTORS.list || 'main')
-    .then(function (list) {
+  waitFor(FIND.root)
+    .then(function (root) {
       if (controller.signal.aborted) return;
       setupFilters();
       processList();
-      observe(list);
+      observe(root);
       hookHistory();
-      on(list, 'click', onListClick, { capture: true }); // capture: beat React's link handler
+      on(root, 'click', onListClick, { capture: true }); // capture: beat React's link handler
     })
     .catch(function (err) { console.warn('[' + NS + ']', err); });
 })();
