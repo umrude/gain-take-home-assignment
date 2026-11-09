@@ -1,0 +1,70 @@
+/* Task 2 — Footer Drawer. Inject into <head>. Prefix: .gd- */
+
+:root {
+  --gd-accent: #d9a84e;     /* tab colour from Figure 3 — TODO adjust */
+  --gd-panel-bg: #fff;
+  --gd-tooltip-bg: #c2185b; /* Figure 5 */
+  --gd-gap: 16px;
+  --gd-per-page: 1;         /* slides visible per page; bumped at breakpoints */
+  --gd-ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* ---------------------------------------------------------------- overlay */
+
+.gd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, .45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s;
+}
+html.gd-open .gd-overlay { opacity: 1; pointer-events: auto; }
+
+/* ---------------------------------------------------------------- drawer */
+
+.gd-drawer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateY(var(--gd-panel-h, 100%)); /* TODO: hide panel, keep tab visible */
+  transition: transform .4s var(--gd-ease);
+}
+html.gd-open .gd-drawer { transform: translateY(0); }
+
+/* TODO: .gd-tab (flex), .gd-tab__nav hidden when closed */
+
+.gd-chevron { display: inline-block; transition: transform .3s var(--gd-ease); }
+html.gd-open .gd-chevron { transform: rotate(180deg); }
+
+/* ---------------------------------------------------------------- slider */
+
+.gd-panel { width: 100%; background: var(--gd-panel-bg); }
+.gd-track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - (var(--gd-per-page) - 1) * var(--gd-gap)) / var(--gd-per-page));
+  gap: var(--gd-gap);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  padding: 16px;
+}
+.gd-track::-webkit-scrollbar { display: none; }
+.gd-track.is-dragging { scroll-snap-type: none; cursor: grabbing; user-select: none; }
+.gd-slide { scroll-snap-align: start; display: flex; flex-direction: column; }
+
+/* ---------------------------------------------------------------- tooltip (Figure 5) */
+/* TODO: .gd-tag[data-tooltip]::after bubble + ::before arrow, fade/slide-in.
+   Small screens / tight space: flip below or clamp to slide edge; show on tap/focus too. */
+
+/* ---------------------------------------------------------------- breakpoints */
+
+@media (min-width: 768px)  { :root { --gd-per-page: 2; } }
+@media (min-width: 1200px) { :root { --gd-per-page: 4; } }

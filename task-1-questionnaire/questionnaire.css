@@ -1,0 +1,94 @@
+/* Task 1 — Dynamic Modal (Questionnaire). Inject into <head>. Prefix: .gq- */
+
+:root {
+  --gq-blue: #3f6fd8;       /* TODO: match Figure 2 */
+  --gq-green: #3fa34d;
+  --gq-grey: #d0d0d0;
+
+  /* Pixel button (Figure 1) — TODO: sample exact colours from the figure */
+  --gq-btn-bg: #5a9a3c;
+  --gq-btn-bg-hover: #4c8732;
+  --gq-btn-bg-pressed: #3e6f28;
+  --gq-btn-bg-disabled: #e6dcdc;
+  --gq-btn-text: #fff;
+  --gq-btn-text-disabled: #b8aaaa;
+  --gq-btn-outline: #1f2a1a;
+  --gq-btn-highlight: rgba(255, 255, 255, .25); /* top strip */
+  --gq-btn-shade: rgba(0, 0, 0, .3);            /* bottom shadow */
+  --gq-btn-focus: #6a8cff;
+  --gq-px: 3px;                                  /* one "pixel" of the stepped corner */
+}
+
+html.gq-lock { overflow: hidden; }
+
+/* ---------------------------------------------------------------- section */
+
+.gq-section { padding: 64px 16px; }
+.gq-section__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- pixel button */
+/*
+ * Approach (TODO):
+ * - Stepped corners: clip-path polygon that notches each corner by var(--gq-px).
+ * - Dark outline that follows the notches: stack box-shadows, or use a wrapper
+ *   background + inner element inset by --gq-px (clip-path cuts normal borders).
+ * - Top strip / bottom shadow: inset box-shadows (0 var(--gq-px) / 0 calc(-1 * var(--gq-px))).
+ * - Pressed: drop both inset shadows so it looks pushed in.
+ * - Focus: blue outline outside the dark outline (:focus-visible only).
+ */
+.gq-btn {
+  appearance: none;
+  border: 0;
+  padding: 10px 24px;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--gq-btn-text);
+  background: var(--gq-btn-bg);
+  cursor: pointer;
+}
+.gq-btn:hover { background: var(--gq-btn-bg-hover); }
+.gq-btn:focus-visible { /* TODO */ }
+.gq-btn:active { background: var(--gq-btn-bg-pressed); }
+.gq-btn:disabled {
+  background: var(--gq-btn-bg-disabled);
+  color: var(--gq-btn-text-disabled);
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------- modal */
+
+.gq-modal[hidden] { display: none; }
+.gq-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, .6);
+}
+/* TODO: .gq-modal__dialog, header, body, footer (flex, space-between) */
+
+/* ---------------------------------------------------------------- progress bar (Figure 2) */
+/* TODO: .gq-progress (flex), .gq-progress__step.is-active / .is-complete / .is-next,
+   connector line between steps, green check badge on completed steps */
+
+/* ---------------------------------------------------------------- options + results */
+/* TODO: .gq-options (grid, auto-fill minmax), .gq-option (checkbox/radio card),
+   .gq-results, .gq-card (case study / article), .gq-badge--exact / --related, .gq-summary */
+
+/* ---------------------------------------------------------------- responsive */
+
+@media (max-width: 767px) {
+  /* TODO: full-height modal, hide progress labels, single-column options */
+}

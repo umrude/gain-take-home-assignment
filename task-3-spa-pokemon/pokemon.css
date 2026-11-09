@@ -1,0 +1,51 @@
+/* Task 3 — SPA DOM Manipulation (Pokémon). Inject into <head>. Prefix: .gp- */
+
+/*
+ * Anti-flash: hide every original card's own content until JS marks it ready.
+ * Because this lives in <head>, it applies before the JS even runs.
+ * TODO: replace `.ARTICLE-CARD` with the real card selector (same as SELECTORS.card).
+ */
+.ARTICLE-CARD > :not(.gp-card) { display: none !important; }
+.ARTICLE-CARD:not([data-gp-ready]) { visibility: hidden; } /* keeps layout, no flash */
+
+/* TODO: hide "Filter by Tags" wrapper */
+
+:root {
+  --gp-radius: 12px;
+  --gp-flip: .6s;
+  /* type colours */
+  --gp-normal: #a8a77a; --gp-fire: #ee8130; --gp-water: #6390f0; --gp-electric: #f7d02c;
+  --gp-grass: #7ac74c;  --gp-ice: #96d9d6;  --gp-fighting: #c22e28; --gp-poison: #a33ea1;
+  --gp-ground: #e2bf65; --gp-flying: #a98ff3; --gp-psychic: #f95587; --gp-bug: #a6b91a;
+  --gp-rock: #b6a136;   --gp-ghost: #735797; --gp-dragon: #6f35fc; --gp-dark: #705746;
+  --gp-steel: #b7b7ce;  --gp-fairy: #d685ad;
+}
+
+/* ---------------------------------------------------------------- flip card */
+
+.gp-card { perspective: 1000px; cursor: pointer; height: 100%; }
+.gp-card__inner {
+  position: relative;
+  display: grid; /* front & back stacked in one cell */
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform var(--gp-flip) cubic-bezier(.2, .8, .2, 1);
+}
+.gp-card.is-flipped .gp-card__inner { transform: rotateY(180deg); }
+.gp-card__face {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  backface-visibility: hidden;
+  border-radius: var(--gp-radius);
+}
+.gp-card__back { transform: rotateY(180deg); }
+
+/* TODO: image, name, tags (.gp-tag--fire etc.), stats bars on the back */
+
+.gp-hidden { display: none !important; }
+.gp-empty { /* TODO: empty message when no Pokémon match the type */ }
+
+@media (prefers-reduced-motion: reduce) {
+  .gp-card__inner { transition: none; }
+}
