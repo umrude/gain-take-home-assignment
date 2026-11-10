@@ -2,6 +2,19 @@
  * Task 1 — Dynamic Modal (Questionnaire)
  * Page: https://www.thisisgain.com/
  * Paste this whole file into the DevTools console. CSS: questionnaire.css
+ *
+ * How it fits together:
+ *   1. waitFor(pageReady) — wait until everything we read from the page exists
+ *      (works even when injected at document-start, before the page has parsed).
+ *   2. scrape() — read services, sectors, case studies, articles and the email
+ *      from the live DOM once, into `data`. Nothing is hardcoded or fetched.
+ *   3. buildSection() / buildModal() — create our DOM once.
+ *   4. render() — redraw the progress bar, the current step and the footer from
+ *      `state`. Every interaction updates `state` then calls render()/goTo(), so
+ *      `state` is the single source of truth and the DOM is just a view of it.
+ *
+ * The whole file is an IIFE so nothing leaks into the page's global scope except
+ * the one debug handle, window.__gainQuestionnaire.
  */
 (function () {
   'use strict';
@@ -9,7 +22,11 @@
   var NS = 'gq'; // class/id prefix for everything this script creates
   var INSTANCE_KEY = '__gainQuestionnaire';
 
-  // Re-run safety: tear down the previous instance before building again.
+  /*
+   * Re-run safety (A/B scripts often run more than once): if a previous copy of this
+   * script is on the page, tear it down first, then build again from scratch. destroy()
+   * removes our elements, listeners and observers, so running twice == running once.
+   */
   if (window[INSTANCE_KEY] && typeof window[INSTANCE_KEY].destroy === 'function') {
     window[INSTANCE_KEY].destroy();
   }
@@ -60,7 +77,13 @@
   var HEADINGS = { now: 'Let’s talk this week', soon: 'Here’s where to start', exploring: 'Take your time' };
   var WORK_URL = 'https://www.thisisgain.com/work/';
 
-  var controller = new AbortController(); // one signal removes every listener on destroy
+  /*
+   * Every listener goes through on(), which registers it with one AbortController.
+   * destroy() calls controller.abort() and the browser removes all of them at once,
+   * so we never need to keep references to handlers just to remove them later.
+   * This matters most for listeners on `document` (Esc), which outlive our elements.
+   */
+  var controller = new AbortController();
   var on = function (el, type, fn) {
     el.addEventListener(type, fn, { signal: controller.signal });
   };
@@ -69,7 +92,12 @@
 
   /**
    * Resolves with the first truthy result of `finder` (a function, or a CSS selector).
-   * Works at document-start: observes <html> and re-checks at most once per frame.
+   *
+   * Why it works at document-start: <body> may not exist yet, but <html> always does,
+   * so we observe <html> for added nodes. The page fires thousands of mutations while
+   * parsing, so instead of re-checking on each one we queue at most one check per
+   * animation frame (`queued` flag + requestAnimationFrame).
+   * It also cleans up after itself on timeout and if the instance is destroyed mid-wait.
    */
   function waitFor(finder, timeout) {
     var check =
@@ -121,6 +149,7 @@
     );
   }
 
+  // node.closest() that tolerates a null node, so FIND chains don't need `if`s.
   function closestOf(node, selector) {
     return node ? node.closest(selector) : null;
   }
@@ -132,7 +161,12 @@
     return main ? node : null;
   }
 
-  // Cards in the first `.content-slider` that comes after the heading labelled `label`.
+  /*
+   * Cards in the first `.content-slider` that comes after the heading labelled `label`.
+   * The heading and the slider aren't parent/child, so we can't use closest(). Instead,
+   * compareDocumentPosition() returns a bitmask; `& DOCUMENT_POSITION_FOLLOWING` is
+   * truthy when the slider comes later in the document than the heading.
+   */
   function cardsAfterHeading(label) {
     var heading = findByText('main h2', label);
     if (!heading) return null;
@@ -157,7 +191,12 @@
     }
   }
 
-  // Cloudflare email obfuscation: first byte is the XOR key for the rest.
+  /*
+   * Cloudflare email obfuscation. The footer HTML contains "[email protected]" plus a
+   * hex string (data-cfemail); Cloudflare's own script decodes it later. We decode it
+   * ourselves so it works at document-start: the first byte is an XOR key, and every
+   * following byte XOR the key is one character of the address.
+   */
   function decodeCfEmail(hex) {
     var key = parseInt(hex.substr(0, 2), 16),
       out = '';
@@ -177,12 +216,16 @@
     );
   }
 
+  // Trimmed text of the first `selector` match inside `root`, or '' if missing.
   function textOf(root, selector) {
     var n = root.querySelector(selector);
     return n ? n.textContent.replace(/\s+/g, ' ').trim() : '';
   }
 
-  // Slider libraries clone slides for looping; keep the first card per URL.
+  /*
+   * Slider libraries clone slides for looping; keep the first card per URL.
+   * `return (seen[key] = true)` records the URL and returns true (keep) in one step.
+   */
   function uniqueCards(cards) {
     var seen = {};
     return Array.prototype.filter.call(cards || [], function (c) {
@@ -193,6 +236,13 @@
     });
   }
 
+  /**
+   * Tiny DOM builder: el('a', { class: 'x', href: '/y', text: 'Hi' }, [children]).
+   * `text` sets textContent (never innerHTML, so scraped text can't inject markup).
+   * Gotcha: everything else goes through setAttribute, so boolean attributes are on
+   * whenever they're present — { hidden: false } still hides. For booleans that change
+   * later, set the property instead (button.disabled = true, modal.hidden = false).
+   */
   function el(tag, attrs, children) {
     var node = document.createElement(tag);
     Object.keys(attrs || {}).forEach(function (k) {
@@ -208,7 +258,10 @@
 
   /* ---------------------------------------------------------------- scraping */
 
-  /** @returns {{name: string, description: string, url: string}[]} */
+  /**
+   * Question 1 options: the "Solutions" menu items (name + description).
+   * @returns {{name: string, description: string, url: string}[]}
+   */
   function getServices() {
     return Array.prototype.map.call(FIND.solutionsLinks() || [], function (a) {
       return {
@@ -219,7 +272,10 @@
     });
   }
 
-  /** @returns {string[]} */
+  /**
+   * Question 2 options: the sector links in "Our Sectors".
+   * @returns {string[]}
+   */
   function getIndustries() {
     return Array.prototype.map.call(FIND.sectorLinks() || [], function (a) {
       return a.textContent.replace(/\s+/g, ' ').trim();
@@ -227,8 +283,10 @@
   }
 
   /**
-   * Work cards carry two tags: [service, industry].
-   * @returns {{title: string, url: string, image: string, service: string, industry: string}[]} in slider order
+   * Case studies from the "Work" slider, in slider order (the brief's tie-breaker).
+   * Each card carries two tags: [service, industry]. The industry is mapped onto the
+   * sector list with canonicalLabel() so it can be compared with question 2's answers.
+   * @returns {{title: string, url: string, image: string, service: string, industry: string}[]}
    */
   function getCaseStudies(industries) {
     return uniqueCards(FIND.workCards()).map(function (card) {
@@ -259,7 +317,11 @@
     });
   }
 
-  /** @returns {string} */
+  /**
+   * The footer email: a plain mailto: link if Cloudflare's script has already run,
+   * otherwise decoded from the obfuscated data-cfemail / #hex (see decodeCfEmail).
+   * @returns {string}
+   */
   function getEmail() {
     var node = FIND.footerEmail();
     if (!node) return '';
@@ -275,11 +337,22 @@
   /* ---------------------------------------------------------------- state */
 
   var data = null; // filled by scrape() on init
+
+  /*
+   * Everything the UI shows is derived from this object. Multi-answer questions hold
+   * arrays, single-answer ones hold a key from USEFUL / TIMING (or null). Answers are
+   * kept when the modal is closed, so reopening resumes where the user left off.
+   */
   var state = {
     step: 0, // 0..3 questions, 4 results
     answers: { services: [], industries: [], useful: null, timing: null }
   };
 
+  /*
+   * One entry per step, in order. `key` is where the answer lives in state.answers,
+   * `multi` decides checkbox vs radio, `label` is the progress-bar text.
+   * Adding/reordering a question only needs a change here (+ optionsFor).
+   */
   var STEPS = [
     { key: 'services', label: 'Services', multi: true, title: 'What do you need help with?' },
     { key: 'industries', label: 'Industry', multi: true, title: 'Which industry are you in?' },
@@ -288,6 +361,12 @@
     { key: 'results', label: 'Results' }
   ];
 
+  /*
+   * The options for a step as { value, label } pairs. Questions 1–2 come from the
+   * scraped `data`; questions 3–4 are fixed by the brief. For 3–4 the stored value is
+   * the short key ('now', 'talk'...), not the label, so the results logic never
+   * depends on display text.
+   */
   function optionsFor(stepKey) {
     switch (stepKey) {
       case 'services':
@@ -311,6 +390,7 @@
     }
   }
 
+  // Arrays need at least one pick; single answers need a value. Drives Next + goTo().
   function isStepAnswered(i) {
     var v = state.answers[STEPS[i].key];
     return Array.isArray(v) ? v.length > 0 : v != null;
@@ -319,8 +399,18 @@
   /* ---------------------------------------------------------------- results logic (pure) */
 
   /**
-   * Decides what the results step shows. Pure function of answers + scraped data,
-   * so going back and changing an answer just recomputes it.
+   * Decides what the results step shows. Pure function of answers + scraped data
+   * (no DOM), so going back and changing an answer just recomputes it, and it can be
+   * tested from the console: __gainQuestionnaire.computeResults({...}, __gainQuestionnaire.data)
+   *
+   * Brief rules → code:
+   * - Heading comes from question 4 (HEADINGS[timing]).
+   * - emailTop: "Right away" OR "Talk to someone". One flag covers both, which is how
+   *   the email is shown only once when both apply.
+   * - Case studies: exact = picked service AND picked industry; related = picked service
+   *   only. Exact first, then related, max 3. filter() keeps slider order inside each group.
+   *   null = not asked for; [] = asked for but none match (→ "none" message).
+   * - Articles: "Articles to read", or "Talk to someone" + "Just exploring".
    */
   function computeResults(answers, d) {
     var result = {
@@ -364,12 +454,17 @@
 
   /* ---------------------------------------------------------------- rendering */
 
-  var root = { section: null, modal: null };
+  // References to our long-lived elements, so render() doesn't have to search for them.
+  var root = { section: null, modal: null, backBtn: null, nextBtn: null };
 
+  /*
+   * The new section under the hero. `data-gain="gq"` marks every root element we add,
+   * which is how destroy() finds and removes them on a re-run.
+   */
   function buildSection(hero) {
     var section = el('section', { class: NS + '-section', 'data-gain': NS }, [
       el('div', { class: NS + '-section__inner' }, [
-        el('h2', { class: NS + '-section__title', text: 'Not sure where to start?' }), // TODO copy
+        el('h2', { class: NS + '-section__title', text: 'Not sure where to start?' }),
         el('p', {
           class: NS + '-section__text',
           text: 'Answer four quick questions and we’ll point you in the right direction.'
@@ -382,33 +477,56 @@
     return section;
   }
 
+  /*
+   * Builds the modal's fixed structure ONCE. render() only swaps the contents of
+   * the progress wrapper and the content area; the shell, buttons and their listeners
+   * stay the same for the life of the instance.
+   *
+   *   .gq-modal                    overlay (click outside the panel to close)
+   *     .gq-modal__content-wrapper the white panel, role="dialog"
+   *       progress-wrapper | close | content | footer (Back, Next)
+   */
   function buildModal() {
-    // TODO: dialog markup — overlay, close button, progress bar, step body, back/next footer.
-    // Use role="dialog" aria-modal="true", trap focus, close on Esc/overlay click.
-    var modal = el(
-      'div',
-      { id: NS + '-modal', class: NS + '-modal', 'data-gain': NS, role: 'dialog', 'aria-modal': 'true', hidden: '' },
-      [
-        el('div', { class: NS + '-modal__content-wrapper' }, [
-          el('button', { class: NS + '-modal__close', type: 'button', text: 'Close' }),
-          el('div', { class: NS + '-modal__progress-wrapper' }),
-          el('div', { class: NS + '-modal__content' }),
-          el('div', { class: NS + '-modal__footer' }, [
-            el('button', { class: NS + '-modal__footer__button', type: 'button', text: 'Back' }),
-            el('button', { class: NS + '-modal__footer__button', type: 'button', text: 'Next' })
-          ])
-        ])
-      ]
-    );
+    var closeBtn = el('button', { class: NS + '-modal__close', type: 'button', text: 'Close' });
+    var backBtn = el('button', { class: NS + '-modal__footer__button', type: 'button', text: 'Back' });
+    var nextBtn = el('button', { class: NS + '-modal__footer__button', type: 'button', text: 'Next' });
+
+    var modal = el('div', { id: NS + '-modal', class: NS + '-modal', 'data-gain': NS, hidden: '' }, [
+      el('div', { class: NS + '-modal__content-wrapper', role: 'dialog', 'aria-modal': 'true' }, [
+        el('div', { class: NS + '-modal__progress-wrapper' }),
+        closeBtn,
+        el('div', { class: NS + '-modal__content' }),
+        el('div', { class: NS + '-modal__footer' }, [backBtn, nextBtn])
+      ])
+    ]);
+    on(backBtn, 'click', function () {
+      goTo(state.step - 1);
+    });
+    on(nextBtn, 'click', function () {
+      goTo(state.step + 1);
+    });
+    on(closeBtn, 'click', closeModal);
+
+    // Clicks inside the panel bubble up to the overlay too; e.target is only the
+    // overlay itself when the click landed outside the panel.
+    on(modal, 'click', function (e) {
+      if (e.target === modal) closeModal();
+    });
+    root.backBtn = backBtn;
+    root.nextBtn = nextBtn;
     document.body.appendChild(modal);
     return modal;
   }
 
+  /*
+   * Progress bar (Figure 2): one item per STEPS entry, state decided by position:
+   *   before the current step → --complete (blue + green check)
+   *   the current step        → --active   (blue, bold label)
+   *   after it                → --next     (white)
+   * The numbered circle, connector line and check badge are all drawn in CSS
+   * (::before / ::after), so the markup stays a label + a connector.
+   */
   function renderProgress() {
-    // TODO: one item per STEPS entry.
-    // i < state.step  -> .is-complete (blue + green check)
-    // i === state.step -> .is-active (blue, bold label)
-    // i > state.step  -> .is-next (white)
     var children = STEPS.map(function (step, i) {
       var item = el('div', { class: NS + '-progress__item' }, [
         el('div', { class: NS + '-progress__item__label', text: step.label }),
@@ -431,22 +549,60 @@
     return progress;
   }
 
+  /*
+   * Renders the current question. Checkboxes for multi-answer steps, radios (shared
+   * `name`, so the browser enforces one choice) for single-answer steps. Inputs start
+   * checked from state.answers, which is what keeps earlier picks when going back.
+   */
   function renderQuestion() {
-    // TODO: render optionsFor(STEPS[state.step].key) as checkboxes (multi) or radios (single),
-    // bind changes into state.answers, and toggle the Next button with isStepAnswered().
+    var step = STEPS[state.step];
     var question = el('div', { class: NS + '-question' }, [
-      el('h3', { class: NS + '-question__title', text: STEPS[state.step].title }),
+      el('h3', { class: NS + '-question__title', text: step.title }),
       el(
         'div',
         { class: NS + '-question__options' },
-        optionsFor(STEPS[state.step].key).map(function (option) {
+        optionsFor(step.key).map(function (option) {
+          var inputAttr = {
+            type: step.multi ? 'checkbox' : 'radio',
+            name: step.key,
+            value: option.value
+          };
+
+          if (step.multi && state.answers[step.key].includes(option.value)) {
+            inputAttr.checked = true;
+          } else if (!step.multi && state.answers[step.key] === option.value) {
+            inputAttr.checked = true;
+          }
           return el('label', { class: NS + '-question__option' }, [
-            el('input', { type: 'checkbox', name: STEPS[state.step].key, value: option.value }),
+            el('input', inputAttr),
             el('span', { class: NS + '-question__option__label', text: option.label })
           ]);
         })
       )
     ]);
+
+    /*
+     * Event delegation: one `change` listener on the question container handles every
+     * input, because change events bubble. The container is replaced on the next
+     * render, so the old listener goes with it.
+     * Multi: add or remove the value depending on whether the box is now ticked.
+     * Single: a radio only fires `change` when it becomes selected, so just store it.
+     * (The two branches matter: single answers start as null, which has no .concat.)
+     */
+    on(question, 'change', function (e) {
+      var selectedValue = e.target.value;
+      if (step.multi) {
+        state.answers[step.key] = e.target.checked
+          ? state.answers[step.key].concat(selectedValue)
+          : state.answers[step.key].filter(function (v) {
+              return v !== selectedValue;
+            });
+      } else {
+        state.answers[step.key] = selectedValue;
+      }
+      updateFooter();
+    });
+
     if (root.modal.querySelector('.' + NS + '-modal__content')) {
       root.modal.querySelector('.' + NS + '-modal__content').replaceChildren(question);
     }
@@ -455,10 +611,13 @@
 
   function renderResults() {
     var r = computeResults(state.answers, data);
-    // TODO: heading, email block (if r.emailTop or useful === 'talk'),
-    // case study cards with "Exact match"/"Related" labels or the "none" message + WORK_URL,
-    // article cards, and a summary of answers.services / answers.industries with
-    // "Change" links that call goTo(0) / goTo(1).
+    // TODO (PLAN.md 1.7):
+    // - put `results` into .gq-modal__content (replaceChildren, like renderQuestion)
+    // - r.caseStudies / r.articles are null when they don't apply → guard before .map
+    // - email block only when r.emailTop, with copy that matches the brief
+    // - case study cards: image + "Exact match"/"Related" badge (c.exact); [] → "none" message + WORK_URL
+    // - drop `description` (not in the scraped data), add the image instead
+    // - "Change" → <button>s that call goTo(0) / goTo(1)
     var results = el('div', { class: NS + '-results' }, [
       el('h3', { class: NS + '-results__title', text: r.heading }),
       el('div', { class: NS + '-results__email' }, [
@@ -519,19 +678,37 @@
     return results;
   }
 
+  /*
+   * Footer state for the current step: no Back on question 1, no Next on the results,
+   * and Next disabled until the step is answered. Runs on every render and on every
+   * answer change, so it can never go stale.
+   */
+  function updateFooter() {
+    root.backBtn.classList.toggle('hidden', state.step === 0);
+    root.nextBtn.classList.toggle('hidden', state.step === STEPS.length - 1);
+    root.nextBtn.disabled = !isStepAnswered(state.step);
+  }
+
+  // Redraws everything that depends on `state`. Called on open and on every step change.
   function render() {
     renderProgress();
     if (state.step < 4) renderQuestion();
     else renderResults();
+    updateFooter();
   }
 
+  /*
+   * The only way to change step. Moving forward requires every earlier step to be
+   * answered, so Next can't skip a question even if its `disabled` is removed in
+   * DevTools. Going back always passes (fewer steps to check).
+   */
   function goTo(step) {
-    // Can't move forward past an unanswered step.
     for (var i = 0; i < step; i++) if (!isStepAnswered(i)) return;
     state.step = step;
     render();
   }
 
+  // `gq-lock` on <html> stops the page behind the modal from scrolling (see CSS).
   function openModal() {
     root.modal.hidden = false;
     document.documentElement.classList.add(NS + '-lock');
@@ -545,6 +722,7 @@
 
   /* ---------------------------------------------------------------- lifecycle */
 
+  // Reads everything from the page once. Industries first: case studies map onto them.
   function scrape() {
     var industries = getIndustries();
     return {
@@ -569,6 +747,7 @@
     return ready ? hero : null;
   }
 
+  // Undo everything this instance did: listeners (abort), our elements, the scroll lock.
   function destroy() {
     controller.abort();
     document.querySelectorAll('[data-gain="' + NS + '"]').forEach(function (n) {
@@ -578,7 +757,11 @@
     delete window[INSTANCE_KEY];
   }
 
-  // Exposed for debugging in the console, e.g. __gainQuestionnaire.data
+  /*
+   * The one global: lets the next run find and destroy this instance, and is handy in
+   * the console (__gainQuestionnaire.state, .data). `data` is a getter because it's
+   * only filled in once the page is ready.
+   */
   window[INSTANCE_KEY] = {
     destroy: destroy,
     state: state,
@@ -590,7 +773,9 @@
 
   waitFor(pageReady)
     .then(function (hero) {
-      if (controller.signal.aborted) return; // destroyed while waiting
+      // If the script was re-run while this one was still waiting, this instance has
+      // been destroyed; building now would create a duplicate section.
+      if (controller.signal.aborted) return;
       data = scrape();
       root.section = buildSection(hero);
       root.modal = buildModal();

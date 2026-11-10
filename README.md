@@ -49,6 +49,11 @@ Each task has two files:
 
   The progress bar keeps the blue and green from Figure 2, because the brief asks for them. The section is a light card rather than a dark band, so the pixel button's dark outline (a Figure 1 detail) stays visible.
 
+- **How the questionnaire is built:**
+  - **Single source of truth:** `state` (the current step plus the answers) holds everything, and `render()` redraws the progress bar, the step and the footer from it.
+  - **Moving between steps:** Back, Next and "Change" all go through `goTo()`. It refuses to move past an unanswered step, so the rule holds even if the disabled Next button is re-enabled in DevTools.
+  - **Results:** `computeResults()` is a pure function of the answers and the scraped data, so it can be tested from the console without touching the DOM:
+    `__gainQuestionnaire.computeResults({ services: ['Experience'], industries: ['Retail'], useful: 'cases', timing: 'now' }, __gainQuestionnaire.data)`
 - **The pixel button (Figure 1)** is drawn with a single `box-shadow` list:
   - four outer shadows, each offset by one pixel, draw the dark outline with stepped corners
   - two inset shadows draw the top strip and the bottom shadow
@@ -74,8 +79,8 @@ Each task has two files:
 - [ ] Button UI states match Figure 1 (CSS only)
 - [x] Button opens a modal
 - [ ] 4 question steps + a results step
-- [ ] Service options match the "Solutions" menu and industry options match "Our Sectors"
-- [ ] Questions 1 and 2 allow more than one answer, questions 3 and 4 allow one
+- [x] Service options match the "Solutions" menu and industry options match "Our Sectors"
+- [x] Questions 1 and 2 allow more than one answer, questions 3 and 4 allow one
 - [ ] Results heading changes with question 4
 - [ ] Results content changes with question 3 (case studies, articles or email)
 - [ ] Exact matches first, topped up with labelled related ones (max 3, in slider order), plus the "none" message
@@ -84,7 +89,7 @@ Each task has two files:
 - [ ] Summary of the question 1 and 2 picks, with a way to go back and change them
 - [ ] Case studies and articles link to their real pages
 - [ ] Progress bar with active (blue, bold), completed (blue + green checkmark) and next (white) states
-- [ ] Can't go to the next step until the current one is answered
+- [x] Can't go to the next step until the current one is answered
 - [ ] Can go back, change an answer, and the results update
 
 ### 2. Footer Drawer (https://www.thisisgain.com/)
