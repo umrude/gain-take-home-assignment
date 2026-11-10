@@ -553,12 +553,14 @@
    *   before the current step → --complete (blue + green check)
    *   the current step        → --active   (blue, bold label)
    *   after it                → --next     (white)
-   * The numbered circle, connector line and check badge are all drawn in CSS
-   * (::before / ::after), so the markup stays a label + a connector.
+   * The circle, connector line and check badge are drawn in CSS (::before / ::after).
+   * The icon is an empty span: CSS picks the picture from `data-step` (a mask), so the
+   * icons live in the stylesheet and take their colour from the state, like the text.
    */
   function renderProgress() {
     var children = STEPS.map(function (step, i) {
-      var item = el('div', { class: NS + '-progress__item' }, [
+      var item = el('div', { class: NS + '-progress__item', 'data-step': step.key }, [
+        el('span', { class: NS + '-progress__item__icon', 'aria-hidden': 'true' }),
         el('div', { class: NS + '-progress__item__label', text: step.label }),
         el('div', { class: NS + '-progress__item__connector' })
       ]);

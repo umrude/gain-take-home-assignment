@@ -18,6 +18,7 @@
   --gq-blue: #4b6fd6;
   --gq-blue-soft: #e3e9fb;
   --gq-check: #2fb35a;
+  --gq-blue-muted: #5f6f94; /* upcoming step labels (Figure 2's grey-blue), ~5:1 on white */
 
   /* Pixel button (Figure 1) */
   --gq-px: 3px; /* one "pixel": outline width, corner step, strip and shadow height */
@@ -28,8 +29,9 @@ html.gq-lock {
   overflow: hidden;
 }
 
-/* Mono uppercase labels, like the site's nav and "Our Sectors" eyebrow */
-.gq-progress__item__label,
+/* Mono uppercase labels, like the site's nav and "Our Sectors" eyebrow.
+   (Not the progress labels: the site only loads Anonymous Pro at 700, so the active
+   step couldn't be bolder than the rest. Those use Inter Tight, which has 400 + 700.) */
 .gq-modal__footer__button,
 .gq-badge,
 .gq-results__summary__title,
@@ -344,16 +346,16 @@ html.gq-lock {
 
 /* ---------------------------------------------------------------- progress bar (Figure 2) */
 /*
- * Markup: .gq-progress > .gq-progress__item (--complete | --active | --next)
- *           > .gq-progress__item__label + .gq-progress__item__connector
- * - The circle is the item's ::before, numbered with a CSS counter.
+ * Markup: .gq-progress > .gq-progress__item[data-step] (--complete | --active | --next)
+ *           > .gq-progress__item__icon + .gq-progress__item__label + .gq-progress__item__connector
+ * - The circle is the item's ::before; the icon span sits on top of it.
  * - The connector runs from this circle's centre to the next one's; the last is hidden.
  * - The green check badge is the item's ::after, only on completed steps.
+ * Text colour follows Figure 2: completed = blue, active = blue + bold, next = grey-blue.
  */
 .gq-progress {
   --circle: 40px;
   display: flex;
-  counter-reset: gq-step;
   margin: 0;
   padding: 0;
 }
@@ -366,39 +368,64 @@ html.gq-lock {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  counter-increment: gq-step;
 }
 
 /* Circle */
 .gq-progress__item::before {
-  content: counter(gq-step);
+  content: '';
   position: relative;
   z-index: 1; /* above the connector */
-  display: grid;
-  place-items: center;
   width: var(--circle);
   height: var(--circle);
   border: 2px solid var(--gq-blue-soft);
   border-radius: 50%;
   background: var(--gq-surface);
-  color: var(--gq-blue);
-  font-family: var(--gq-font-mono);
-  font-weight: 700;
   box-sizing: border-box;
   transition:
     background-color 0.3s,
     border-color 0.3s,
-    color 0.3s,
     box-shadow 0.3s;
 }
+
+/*
+ * Icon: an SVG used as a mask, so it's drawn in `background-color` and can change
+ * colour per state (blue on white, white on blue). Centred on the circle.
+ * Icons are Feather-style strokes; which one is picked by the item's data-step.
+ */
+.gq-progress__item__icon {
+  position: absolute;
+  z-index: 2; /* above the circle */
+  top: calc(var(--circle) / 2);
+  left: 50%;
+  width: calc(var(--circle) * 0.5);
+  height: calc(var(--circle) * 0.5);
+  transform: translate(-50%, -50%);
+  background-color: var(--gq-blue);
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
+  transition: background-color 0.3s;
+}
+/* prettier-ignore */
+[data-step='services'] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'/%3E%3C/svg%3E"); }
+/* prettier-ignore */
+[data-step='industries'] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='7' width='20' height='14' rx='2'/%3E%3Cpath d='M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16'/%3E%3C/svg%3E"); }
+/* prettier-ignore */
+[data-step='useful'] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='6'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3C/svg%3E"); }
+/* prettier-ignore */
+[data-step='timing'] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 6v6l4 2'/%3E%3C/svg%3E"); }
+/* prettier-ignore */
+[data-step='results'] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7'/%3E%3C/svg%3E"); }
 
 .gq-progress__item__label {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.75rem;
-  color: var(--gq-blue);
+  font-family: var(--gq-font);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--gq-blue-muted);
+  transition: color 0.3s;
 }
 
 /* Connector: centre of this circle -> centre of the next. The blue fill grows in. */
@@ -415,11 +442,17 @@ html.gq-lock {
   display: none;
 }
 
-/* Completed: blue circle, blue connector, green check */
+/* Completed: blue circle, white icon, blue label, blue connector, green check */
 .gq-progress__item--complete::before {
   border-color: var(--gq-blue);
   background: var(--gq-blue);
-  color: #fff;
+}
+.gq-progress__item--complete .gq-progress__item__icon,
+.gq-progress__item--active .gq-progress__item__icon {
+  background-color: #fff;
+}
+.gq-progress__item--complete .gq-progress__item__label {
+  color: var(--gq-blue);
 }
 .gq-progress__item--complete .gq-progress__item__connector {
   background-size: 100% 100%;
@@ -444,19 +477,26 @@ html.gq-lock {
   animation: gq-pop 0.3s var(--gq-ease);
 }
 
-/* Active: blue circle with a soft ring, bold label */
+/* Active: blue circle with a soft ring, white icon, blue bold label */
 .gq-progress__item--active::before {
   border-color: var(--gq-blue);
   background: var(--gq-blue);
-  color: #fff;
   box-shadow: 0 0 0 5px var(--gq-blue-soft);
 }
 .gq-progress__item--active .gq-progress__item__label {
   font-weight: 700;
-  color: var(--gq-ink);
+  color: var(--gq-blue);
 }
 
-/* Next: white circle (the default above) */
+/* Next: white circle, blue icon, grey-blue label (the defaults above) */
+
+/* High-contrast mode replaces background colours, which would erase the mask icons */
+@media (forced-colors: active) {
+  .gq-progress__item__icon {
+    forced-color-adjust: none;
+    background-color: CanvasText !important;
+  }
+}
 
 @keyframes gq-pop {
   from {

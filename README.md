@@ -48,7 +48,7 @@ Each task has two files:
   - fonts: Inter Tight for headings, uppercase Anonymous Pro for labels and buttons
   - pill-shaped buttons
 
-  The progress bar keeps the blue and green from Figure 2, because the brief asks for them. The section is a light card rather than a dark band, so the pixel button's dark outline (a Figure 1 detail) stays visible.
+  The progress bar keeps the blue and green from Figure 2, because the brief asks for them, with an icon per step and blue labels (bold for the active step). Its labels use Inter Tight rather than the mono font: the site only loads Anonymous Pro at weight 700, so the active step couldn't be bolder than the others. The section is a light card rather than a dark band, so the pixel button's dark outline (a Figure 1 detail) stays visible.
 
   In Task 2, Figures 3–5 are layout examples rather than a colour spec. The drawer keeps their layout and the tooltip's bubble-and-arrow shape, but uses GAIN's colours: a growth-green tab like the site's "LET'S TALK" button, a white panel when open, and a not-black tooltip.
 
