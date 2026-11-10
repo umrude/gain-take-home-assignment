@@ -6,11 +6,11 @@ Three console-injected experiments for https://www.thisisgain.com/, written in p
 
 Each task has two files:
 
-| Task | JS (paste into the console) | CSS (inject into `<head>`) | Page |
-| --- | --- | --- | --- |
-| 1. Dynamic Modal (Questionnaire) | [task-1-questionnaire/questionnaire.js](task-1-questionnaire/questionnaire.js) | [task-1-questionnaire/questionnaire.css](task-1-questionnaire/questionnaire.css) | https://www.thisisgain.com/ |
-| 2. Footer Drawer | [task-2-footer-drawer/drawer.js](task-2-footer-drawer/drawer.js) | [task-2-footer-drawer/drawer.css](task-2-footer-drawer/drawer.css) | https://www.thisisgain.com/ |
-| 3. SPA DOM Manipulation | [task-3-spa-pokemon/pokemon.js](task-3-spa-pokemon/pokemon.js) | [task-3-spa-pokemon/pokemon.css](task-3-spa-pokemon/pokemon.css) | https://www.thisisgain.com/blog/ |
+| Task                             | JS (paste into the console)                                                    | CSS (inject into `<head>`)                                                       | Page                             |
+| -------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | -------------------------------- |
+| 1. Dynamic Modal (Questionnaire) | [task-1-questionnaire/questionnaire.js](task-1-questionnaire/questionnaire.js) | [task-1-questionnaire/questionnaire.css](task-1-questionnaire/questionnaire.css) | https://www.thisisgain.com/      |
+| 2. Footer Drawer                 | [task-2-footer-drawer/drawer.js](task-2-footer-drawer/drawer.js)               | [task-2-footer-drawer/drawer.css](task-2-footer-drawer/drawer.css)               | https://www.thisisgain.com/      |
+| 3. SPA DOM Manipulation          | [task-3-spa-pokemon/pokemon.js](task-3-spa-pokemon/pokemon.js)                 | [task-3-spa-pokemon/pokemon.css](task-3-spa-pokemon/pokemon.css)                 | https://www.thisisgain.com/blog/ |
 
 1. Open the page.
 2. Inject the CSS into `<head>`. The A/B tool does this in production. To do it by hand, paste this into the console with the CSS between the backticks:
@@ -18,6 +18,11 @@ Each task has two files:
    document.head.insertAdjacentHTML('beforeend', '<style id="gain-css-task-N">' + `/* CSS here */` + '</style>');
    ```
 3. Paste the JS file into the console and press Enter.
+
+### Development setup
+
+- **[tampermonkey/](tampermonkey/README.md):** a userscript that loads each task's CSS and JS from this repo at `document-start`, the way an A/B testing tool would. Edit a file, reload the page, and the change is live. It's also how the "runs before the page has loaded" bonus is tested.
+- **Prettier** ([.prettierrc.json](.prettierrc.json)) formats the code on save. The config matches the code style: single quotes, semicolons, no trailing commas.
 
 ## Design notes
 
@@ -31,11 +36,24 @@ Each task has two files:
   - the theme's `data-behaviour` hooks, on the blog
 
   If the site's markup changes, only `FIND` needs updating.
+
 - **Quirks of the live site the scripts handle:**
   - The footer email is hidden by Cloudflare's email protection. The scripts decode `data-cfemail` themselves, so the email can be read before Cloudflare's script runs.
   - Images are lazy-loaded through ShortPixel. Until an image loads, its real URL is inside the placeholder SVG's `data-u` attribute.
   - Work card industry tags don't always match the "Our Sectors" names ("Tech & Telcoms" vs "Tech & Telco"). Tags are mapped to the closest sector name.
   - The Insights cards have no dates. Slider order (newest first) is used as "latest".
+- **Matching GAIN's look (Task 1):** the styles use the site's own design tokens:
+  - colours: not-black `#001400`, growth green `#00FF7F` and white
+  - fonts: Inter Tight for headings, uppercase Anonymous Pro for labels and buttons
+  - pill-shaped buttons
+
+  The progress bar keeps the blue and green from Figure 2, because the brief asks for them. The section is a light card rather than a dark band, so the pixel button's dark outline (a Figure 1 detail) stays visible.
+
+- **The pixel button (Figure 1)** is drawn with a single `box-shadow` list:
+  - four outer shadows, each offset by one pixel, draw the dark outline with stepped corners
+  - two inset shadows draw the top strip and the bottom shadow
+
+  Each state only swaps five custom properties (`--bg`, `--strip`, `--shade`, `--edge`, `--fg`).
 
 ## Notes / issues encountered
 
@@ -44,12 +62,14 @@ Each task has two files:
 ## Take-home checklist
 
 ### All tasks
+
 - [ ] Safe to run more than once on the same page (no duplicate sections, drawers or cards)
 
 ### 1. Dynamic Modal: Questionnaire (https://www.thisisgain.com/)
-- [ ] Uses Flex or Grid CSS
+
+- [x] Uses Flex or Grid CSS
 - [ ] Works on desktop, tablet and mobile (down to 375px)
-- [ ] Nothing is hardcoded: options, case studies, articles and the email are read from the homepage
+- [x] Nothing is hardcoded: options, case studies, articles and the email are read from the homepage
 - [x] New section under the hero: header, paragraph and button
 - [ ] Button UI states match Figure 1 (CSS only)
 - [x] Button opens a modal
@@ -68,6 +88,7 @@ Each task has two files:
 - [ ] Can go back, change an answer, and the results update
 
 ### 2. Footer Drawer (https://www.thisisgain.com/)
+
 - [ ] Uses Flex or Grid CSS
 - [ ] Works on desktop, tablet and mobile (down to 375px)
 - [ ] Sticky drawer at the bottom of the page
@@ -84,6 +105,7 @@ Each task has two files:
 - [ ] 4+ slides on desktop, 2+ on tablet, 1 on mobile
 
 ### 3. SPA DOM Manipulation (https://www.thisisgain.com/blog/)
+
 - [ ] Uses Flex or Grid CSS
 - [ ] Works on desktop, tablet and mobile (down to 375px)
 - [ ] Every article card shows a Pokémon (image, name, types) based on its position
@@ -95,5 +117,6 @@ Each task has two files:
 - [ ] All changes persist through the type filter and paging
 
 ### Bonus
+
 - [ ] [Bonus] Animations where they improve the experience
 - [ ] [Bonus] Works when it runs before the page has finished loading

@@ -447,7 +447,9 @@
         })
       )
     ]);
-    root.modal.querySelector('.' + NS + '-modal__content').replaceChildren(question);
+    if (root.modal.querySelector('.' + NS + '-modal__content')) {
+      root.modal.querySelector('.' + NS + '-modal__content').replaceChildren(question);
+    }
     return question;
   }
 
