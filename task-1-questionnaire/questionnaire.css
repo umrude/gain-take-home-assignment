@@ -33,7 +33,8 @@ html.gq-lock {
 .gq-modal__footer__button,
 .gq-badge,
 .gq-results__summary__title,
-.gq-results__summary__item__link,
+.gq-results__summary__label,
+.gq-results__summary__change,
 .gq-results__case-study > .gq-results__case-study__link,
 .gq-results__article > .gq-results__article__link {
   font-family: var(--gq-font-mono);
@@ -201,7 +202,9 @@ html.gq-lock {
 .gq-modal {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  /* Max z-index: the site's floating widget (bottom left) otherwise sits on top of the
+     modal and covers the Back button on mobile. A modal should cover everything. */
+  z-index: 2147483647;
   display: grid;
   place-items: center;
   padding: 16px;
@@ -254,8 +257,12 @@ html.gq-lock {
   font-size: 28px;
   line-height: 1;
 }
-.gq-modal__close:hover {
-  background: var(--gq-growth-soft);
+/* Hover styles only where a real pointer can hover: on touch screens :hover "sticks"
+   to the last tapped element (e.g. Back stays black after tapping it). */
+@media (hover: hover) {
+  .gq-modal__close:hover {
+    background: var(--gq-growth-soft);
+  }
 }
 
 .gq-modal__progress-wrapper {
@@ -295,19 +302,21 @@ html.gq-lock {
     color 0.2s,
     border-color 0.2s;
 }
-.gq-modal__footer__button:hover:not(:disabled) {
-  background: var(--gq-ink);
-  color: var(--gq-surface);
-}
 .gq-modal__footer__button:last-child {
   margin-left: auto; /* stays right-aligned when Back is hidden on step 1 */
   border-color: var(--gq-growth);
   background: var(--gq-growth);
 }
-.gq-modal__footer__button:last-child:hover:not(:disabled) {
-  border-color: var(--gq-ink);
-  background: var(--gq-ink);
-  color: var(--gq-growth);
+@media (hover: hover) {
+  .gq-modal__footer__button:hover:not(:disabled) {
+    background: var(--gq-ink);
+    color: var(--gq-surface);
+  }
+  .gq-modal__footer__button:last-child:hover:not(:disabled) {
+    border-color: var(--gq-ink);
+    background: var(--gq-ink);
+    color: var(--gq-growth);
+  }
 }
 .gq-modal__footer__button:disabled {
   border-color: var(--gq-line);
@@ -529,8 +538,10 @@ html.gq-lock {
   border-radius: 50%;
 }
 
-.gq-question__option:hover .gq-question__option__label {
-  border-color: var(--gq-ink);
+@media (hover: hover) {
+  .gq-question__option:hover .gq-question__option__label {
+    border-color: var(--gq-ink);
+  }
 }
 .gq-question__option input:checked + .gq-question__option__label {
   border-color: var(--gq-ink);
@@ -622,11 +633,13 @@ html.gq-lock {
     box-shadow 0.25s,
     border-color 0.25s;
 }
-.gq-results__case-study:hover,
-.gq-results__article:hover {
-  transform: translateY(-3px);
-  border-color: var(--gq-ink);
-  box-shadow: 0 10px 28px rgba(0, 20, 0, 0.12);
+@media (hover: hover) {
+  .gq-results__case-study:hover,
+  .gq-results__article:hover {
+    transform: translateY(-3px);
+    border-color: var(--gq-ink);
+    box-shadow: 0 10px 28px rgba(0, 20, 0, 0.12);
+  }
 }
 .gq-results__case-study > :not(img),
 .gq-results__article > :not(img) {
@@ -705,7 +718,7 @@ html.gq-lock {
 .gq-results__summary {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   padding-top: 20px;
   border-top: 1px solid var(--gq-line);
 }
@@ -714,37 +727,51 @@ html.gq-lock {
   font-size: 0.875rem;
   font-weight: 700;
 }
+
+/* One row per question: label | chips | Change */
+.gq-results__summary__row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+}
+.gq-results__summary__label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--gq-muted);
+}
 .gq-results__summary__list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .gq-results__summary__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 4px 4px 14px;
+  padding: 4px 12px;
   border: 1px solid var(--gq-line);
   border-radius: 999px;
   font-size: 0.875rem;
+  line-height: 1.3;
 }
-.gq-results__summary__item__link {
-  padding: 4px 10px;
+.gq-results__summary__change {
+  padding: 6px 12px;
   border: 0;
   border-radius: 999px;
   background: var(--gq-growth-soft);
   color: var(--gq-ink);
   font-size: 0.6875rem;
   font-weight: 700;
-  text-decoration: none;
   cursor: pointer;
   transition: background-color 0.2s;
 }
-.gq-results__summary__item__link:hover {
+.gq-results__summary__change:hover {
   background: var(--gq-growth);
+}
+.gq-results__summary__change:focus-visible {
+  outline: 2px solid var(--gq-blue);
+  outline-offset: 2px;
 }
 
 /* ---------------------------------------------------------------- responsive */
@@ -799,6 +826,15 @@ html.gq-lock {
 
   .gq-question__options {
     grid-template-columns: 1fr;
+  }
+
+  /* Summary: label + Change on one line, chips underneath */
+  .gq-results__summary__row {
+    grid-template-columns: 1fr auto;
+  }
+  .gq-results__summary__list {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
 

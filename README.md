@@ -42,6 +42,7 @@ Each task has two files:
   - Images are lazy-loaded through ShortPixel. Until an image loads, its real URL is inside the placeholder SVG's `data-u` attribute.
   - Work card industry tags don't always match the "Our Sectors" names ("Tech & Telcoms" vs "Tech & Telco"). Tags are mapped to the closest sector name.
   - The Insights cards have no dates. Slider order (newest first) is used as "latest".
+  - The site smooth-scrolls with Lenis, which scrolls the page from JavaScript, so `overflow: hidden` alone doesn't lock the page behind the modal. The page's Lenis instance isn't exposed (`window.lenis` only holds the version), so overlays use Lenis's own opt-out attribute, `data-lenis-prevent`. Lenis then ignores wheel and touch events from inside them.
 - **Matching GAIN's look (Task 1):** the styles use the site's own design tokens:
   - colours: not-black `#001400`, growth green `#00FF7F` and white
   - fonts: Inter Tight for headings, uppercase Anonymous Pro for labels and buttons
@@ -54,6 +55,14 @@ Each task has two files:
   - **Moving between steps:** Back, Next and "Change" all go through `goTo()`. It refuses to move past an unanswered step, so the rule holds even if the disabled Next button is re-enabled in DevTools.
   - **Results:** `computeResults()` is a pure function of the answers and the scraped data, so it can be tested from the console without touching the DOM:
     `__gainQuestionnaire.computeResults({ services: ['Experience'], industries: ['Retail'], useful: 'cases', timing: 'now' }, __gainQuestionnaire.data)`
+- **Overlays and the cookie button:** the site manages consent with Cookiebot, which has a floating button at the bottom left. Consent withdrawal must stay easy to reach (UK/EU GDPR Art. 7(3)), so the two kinds of overlay are treated differently:
+  - **The questionnaire modal covers the button.** It's a temporary overlay that the user opened and can dismiss (×, Esc, or a click outside). A modal should sit above the whole page, and the button is back as soon as the modal closes. Without this, the widget sat on top of the modal's Back button on mobile.
+  - **The sticky drawer (Task 2) doesn't cover it.** The drawer stays on screen all the time, so it sits below Cookiebot's widget and leaves the button reachable. The site also has a "Cookies" link in the footer.
+  - **The first-visit consent banner is never blocked.** The modal only opens when the user clicks Start.
+
+  On a real client site, I'd check this with whoever owns the consent setup.
+
+- **Hover styles inside the modal** are wrapped in `@media (hover: hover)`. Otherwise, on touch screens, `:hover` sticks to the last tapped button (for example, Back stays black after tapping it). The pixel button keeps its plain `:hover`, because Figure 1 requires that state.
 - **The pixel button (Figure 1)** is drawn with a single `box-shadow` list:
   - four outer shadows, each offset by one pixel, draw the dark outline with stepped corners
   - two inset shadows draw the top strip and the bottom shadow
@@ -73,24 +82,24 @@ Each task has two files:
 ### 1. Dynamic Modal: Questionnaire (https://www.thisisgain.com/)
 
 - [x] Uses Flex or Grid CSS
-- [ ] Works on desktop, tablet and mobile (down to 375px)
+- [x] Works on desktop, tablet and mobile (down to 375px)
 - [x] Nothing is hardcoded: options, case studies, articles and the email are read from the homepage
 - [x] New section under the hero: header, paragraph and button
-- [ ] Button UI states match Figure 1 (CSS only)
+- [x] Button UI states match Figure 1 (CSS only)
 - [x] Button opens a modal
-- [ ] 4 question steps + a results step
+- [x] 4 question steps + a results step
 - [x] Service options match the "Solutions" menu and industry options match "Our Sectors"
 - [x] Questions 1 and 2 allow more than one answer, questions 3 and 4 allow one
-- [ ] Results heading changes with question 4
-- [ ] Results content changes with question 3 (case studies, articles or email)
-- [ ] Exact matches first, topped up with labelled related ones (max 3, in slider order), plus the "none" message
-- [ ] "Right away" always shows the email at the top (only once with "Talk to someone")
-- [ ] "Talk to someone" + "Just exploring" also shows the 3 latest articles
-- [ ] Summary of the question 1 and 2 picks, with a way to go back and change them
-- [ ] Case studies and articles link to their real pages
-- [ ] Progress bar with active (blue, bold), completed (blue + green checkmark) and next (white) states
+- [x] Results heading changes with question 4
+- [x] Results content changes with question 3 (case studies, articles or email)
+- [x] Exact matches first, topped up with labelled related ones (max 3, in slider order), plus the "none" message
+- [x] "Right away" always shows the email at the top (only once with "Talk to someone")
+- [x] "Talk to someone" + "Just exploring" also shows the 3 latest articles
+- [x] Summary of the question 1 and 2 picks, with a way to go back and change them
+- [x] Case studies and articles link to their real pages
+- [x] Progress bar with active (blue, bold), completed (blue + green checkmark) and next (white) states
 - [x] Can't go to the next step until the current one is answered
-- [ ] Can go back, change an answer, and the results update
+- [x] Can go back, change an answer, and the results update
 
 ### 2. Footer Drawer (https://www.thisisgain.com/)
 

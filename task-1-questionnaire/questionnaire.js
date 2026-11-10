@@ -455,7 +455,7 @@
   /* ---------------------------------------------------------------- rendering */
 
   // References to our long-lived elements, so render() doesn't have to search for them.
-  var root = { section: null, modal: null, backBtn: null, nextBtn: null };
+  var root = { section: null, modal: null, modalContent: null, backBtn: null, nextBtn: null };
 
   /*
    * The new section under the hero. `data-gain="gq"` marks every root element we add,
@@ -490,15 +490,33 @@
     var closeBtn = el('button', { class: NS + '-modal__close', type: 'button', text: 'Close' });
     var backBtn = el('button', { class: NS + '-modal__footer__button', type: 'button', text: 'Back' });
     var nextBtn = el('button', { class: NS + '-modal__footer__button', type: 'button', text: 'Next' });
+    var modalContent = el('div', { class: NS + '-modal__content' });
 
-    var modal = el('div', { id: NS + '-modal', class: NS + '-modal', 'data-gain': NS, hidden: '' }, [
-      el('div', { class: NS + '-modal__content-wrapper', role: 'dialog', 'aria-modal': 'true' }, [
-        el('div', { class: NS + '-modal__progress-wrapper' }),
-        closeBtn,
-        el('div', { class: NS + '-modal__content' }),
-        el('div', { class: NS + '-modal__footer' }, [backBtn, nextBtn])
-      ])
-    ]);
+    /*
+     * `data-lenis-prevent`: the site smooth-scrolls with Lenis, which turns wheel events
+     * into window.scrollTo() calls, and overflow: hidden doesn't stop scrolling from code.
+     * Lenis ignores events from inside elements with this attribute, and the overlay
+     * covers the whole viewport, so while the modal is open Lenis leaves scrolling to the
+     * browser: the page stays locked (gq-lock) and the modal content scrolls natively.
+     */
+    var modal = el(
+      'div',
+      {
+        id: NS + '-modal',
+        class: NS + '-modal',
+        'data-gain': NS,
+        'data-lenis-prevent': '',
+        hidden: ''
+      },
+      [
+        el('div', { class: NS + '-modal__content-wrapper', role: 'dialog', 'aria-modal': 'true' }, [
+          el('div', { class: NS + '-modal__progress-wrapper' }),
+          closeBtn,
+          modalContent,
+          el('div', { class: NS + '-modal__footer' }, [backBtn, nextBtn])
+        ])
+      ]
+    );
     on(backBtn, 'click', function () {
       goTo(state.step - 1);
     });
@@ -514,6 +532,7 @@
     });
     root.backBtn = backBtn;
     root.nextBtn = nextBtn;
+    root.modalContent = modalContent;
     document.body.appendChild(modal);
     return modal;
   }
@@ -603,79 +622,110 @@
       updateFooter();
     });
 
-    if (root.modal.querySelector('.' + NS + '-modal__content')) {
-      root.modal.querySelector('.' + NS + '-modal__content').replaceChildren(question);
-    }
+    root.modalContent.replaceChildren(question);
     return question;
   }
 
+  /*
+   * Results step. computeResults() decides WHAT to show; this only turns it into DOM.
+   * Each block is either an element or null (el() skips null children), so a block
+   * that doesn't apply to this combination simply isn't built.
+   *
+   * Order on screen = order in the brief:
+   *   heading (Q4) → email (Right away / Talk to someone, shown once)
+   *   → case studies or the "none" message → articles → summary of Q1 + Q2
+   * "Talk to someone" + "Just exploring" therefore shows the articles under the email.
+   */
   function renderResults() {
     var r = computeResults(state.answers, data);
-    // TODO (PLAN.md 1.7):
-    // - put `results` into .gq-modal__content (replaceChildren, like renderQuestion)
-    // - r.caseStudies / r.articles are null when they don't apply → guard before .map
-    // - email block only when r.emailTop, with copy that matches the brief
-    // - case study cards: image + "Exact match"/"Related" badge (c.exact); [] → "none" message + WORK_URL
-    // - drop `description` (not in the scraped data), add the image instead
-    // - "Change" → <button>s that call goTo(0) / goTo(1)
+
     var results = el('div', { class: NS + '-results' }, [
       el('h3', { class: NS + '-results__title', text: r.heading }),
-      el('div', { class: NS + '-results__email' }, [
-        el('p', {
-          class: NS + '-results__email__text',
-          text: r.emailTop
-            ? 'We’ll send you an email with your results.'
-            : 'We’ll send you an email with your results and a link to the case studies.'
-        }),
-        el('a', { class: NS + '-results__email__link', href: 'mailto:' + data.email, text: data.email })
-      ]),
-      el(
-        'div',
-        { class: NS + '-results__case-studies' },
-        r.caseStudies.map(function (c) {
-          return el('div', { class: NS + '-results__case-study' }, [
-            el('h4', { class: NS + '-results__case-study__title', text: c.item.title }),
-            el('p', { class: NS + '-results__case-study__description', text: c.item.description }),
-            el('a', { class: NS + '-results__case-study__link', href: c.item.url, text: 'View case study' })
-          ]);
-        })
-      ),
-      el(
-        'div',
-        { class: NS + '-results__articles' },
-        r.articles.map(function (a) {
-          return el('div', { class: NS + '-results__article' }, [
-            el('h4', { class: NS + '-results__article__title', text: a.title }),
-            el('p', { class: NS + '-results__article__description', text: a.description }),
-            el('a', { class: NS + '-results__article__link', href: a.url, text: 'View article' })
-          ]);
-        })
-      ),
+
+      r.emailTop
+        ? el('div', { class: NS + '-results__email' }, [
+            el('p', { class: NS + '-results__email__text', text: 'Ready to talk? Email us at' }),
+            el('a', { class: NS + '-results__email__link', href: 'mailto:' + data.email, text: data.email })
+          ])
+        : null,
+
+      // null = case studies weren't asked for; [] = asked for, but nothing matched.
+      r.caseStudies && r.caseStudies.length
+        ? el('div', { class: NS + '-results__case-studies' }, r.caseStudies.map(caseStudyCard))
+        : null,
+      r.caseStudies && !r.caseStudies.length
+        ? el('p', { class: NS + '-results__empty' }, [
+            document.createTextNode('No case studies match your picks yet. '),
+            el('a', { href: WORK_URL, text: 'See all our work' })
+          ])
+        : null,
+
+      r.articles ? el('div', { class: NS + '-results__articles' }, r.articles.map(articleCard)) : null,
+
       el('div', { class: NS + '-results__summary' }, [
-        el('h4', { class: NS + '-results__summary__title', text: 'Summary of answers' }),
-        el(
-          'ul',
-          { class: NS + '-results__summary__list' },
-          state.answers.services.map(function (s) {
-            return el('li', { class: NS + '-results__summary__item' }, [
-              el('span', { class: NS + '-results__summary__item__label', text: s }),
-              el('a', { class: NS + '-results__summary__item__link', href: 'javascript:void(0)', text: 'Change' })
-            ]);
-          })
-        ),
-        el(
-          'ul',
-          { class: NS + '-results__summary__list' },
-          state.answers.industries.map(function (i) {
-            return el('li', { class: NS + '-results__summary__item' }, [
-              el('span', { class: NS + '-results__summary__item__label', text: i }),
-              el('a', { class: NS + '-results__summary__item__link', href: 'javascript:void(0)', text: 'Change' })
-            ]);
-          })
-        )
+        el('h4', { class: NS + '-results__summary__title', text: 'Your answers' }),
+        summaryRow('Services', state.answers.services, 0),
+        summaryRow('Industries', state.answers.industries, 1)
       ])
     ]);
+
+    /*
+     * One delegated listener for both "Change" buttons. closest() rather than
+     * e.target.matches() so a click on any part of the button still counts.
+     * dataset values are always strings; without Number(), Next would later compute
+     * "0" + 1 === "01", and STEPS["01"] is undefined.
+     */
+    on(results, 'click', function (e) {
+      var change = e.target.closest('[data-step]');
+      if (change) goTo(Number(change.dataset.step));
+    });
+
+    root.modalContent.replaceChildren(results);
     return results;
+  }
+
+  // Case study card: image, Exact match / Related badge, title, link to the real page.
+  function caseStudyCard(c) {
+    return el('div', { class: NS + '-results__case-study' }, [
+      el('img', { class: NS + '-results__case-study__image', src: c.item.image, alt: '', loading: 'lazy' }),
+      el('span', {
+        class: NS + '-badge ' + NS + (c.exact ? '-badge--exact' : '-badge--related'),
+        text: c.exact ? 'Exact match' : 'Related'
+      }),
+      el('h4', { class: NS + '-results__case-study__title', text: c.item.title }),
+      el('a', { class: NS + '-results__case-study__link', href: c.item.url, text: 'View case study' })
+    ]);
+  }
+
+  // Article card: image, title, link to the real page.
+  function articleCard(a) {
+    return el('div', { class: NS + '-results__article' }, [
+      el('img', { class: NS + '-results__article__image', src: a.image, alt: '', loading: 'lazy' }),
+      el('h4', { class: NS + '-results__article__title', text: a.title }),
+      el('a', { class: NS + '-results__article__link', href: a.url, text: 'View article' })
+    ]);
+  }
+
+  // One summary row per question: label, the picks as chips, and a Change button
+  // that jumps back to that question (data-step = its index in STEPS).
+  function summaryRow(label, values, stepIndex) {
+    return el('div', { class: NS + '-results__summary__row' }, [
+      el('span', { class: NS + '-results__summary__label', text: label }),
+      el(
+        'ul',
+        { class: NS + '-results__summary__list' },
+        values.map(function (v) {
+          return el('li', { class: NS + '-results__summary__item', text: v });
+        })
+      ),
+      el('button', {
+        class: NS + '-results__summary__change',
+        type: 'button',
+        text: 'Change',
+        'aria-label': 'Change ' + label.toLowerCase(),
+        'data-step': stepIndex
+      })
+    ]);
   }
 
   /*
@@ -694,6 +744,8 @@
     renderProgress();
     if (state.step < 4) renderQuestion();
     else renderResults();
+
+    root.modalContent.scrollTop = 0;
     updateFooter();
   }
 
@@ -708,7 +760,11 @@
     render();
   }
 
-  // `gq-lock` on <html> stops the page behind the modal from scrolling (see CSS).
+  /*
+   * `gq-lock` (overflow: hidden on <html>) stops native scrolling of the page behind the
+   * modal; `data-lenis-prevent` on the overlay stops Lenis's JS scrolling (see buildModal).
+   * Both are needed on this site.
+   */
   function openModal() {
     root.modal.hidden = false;
     document.documentElement.classList.add(NS + '-lock');
