@@ -1,28 +1,99 @@
 /* Task 1 — Dynamic Modal (Questionnaire). Inject into <head>. Prefix: .gq- */
 
 :root {
-  --gq-blue: #3f6fd8;       /* TODO: match Figure 2 */
-  --gq-green: #3fa34d;
-  --gq-grey: #d0d0d0;
+  /* GAIN brand (from the site's --wp--preset tokens) */
+  --gq-ink: #001400; /* "not-black" */
+  --gq-growth: #00ff7f; /* "growth green" */
+  --gq-growth-soft: #e6fff2;
+  --gq-surface: #fff;
+  --gq-line: rgba(0, 20, 0, 0.14);
+  --gq-muted: rgba(0, 20, 0, 0.64);
+  --gq-font: 'Inter Tight', 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+  --gq-font-mono: 'Anonymous Pro', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --gq-gutter: var(--wp--preset--spacing--global, 1.25rem);
+  --gq-radius: 16px;
+  --gq-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Progress bar (Figure 2 — the brief asks for blue + a green check) */
+  --gq-blue: #4b6fd6;
+  --gq-blue-soft: #e3e9fb;
+  --gq-check: #2fb35a;
 
   /* Pixel button (Figure 1) */
-  --gq-px: 3px;          /* one "pixel": outline width, corner step, strip and shadow height */
+  --gq-px: 3px; /* one "pixel": outline width, corner step, strip and shadow height */
   --gq-btn-focus: #7b9cff;
 }
 
-html.gq-lock { overflow: hidden; }
+html.gq-lock {
+  overflow: hidden;
+}
+
+/* Mono uppercase labels, like the site's nav and "Our Sectors" eyebrow */
+.gq-progress__item__label,
+.gq-modal__footer__button,
+.gq-badge,
+.gq-results__summary__title,
+.gq-results__summary__item__link,
+.gq-results__case-study > .gq-results__case-study__link,
+.gq-results__article > .gq-results__article__link {
+  font-family: var(--gq-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 
 /* ---------------------------------------------------------------- section */
+/*
+ * Light card in the site's gutter: copy on the left, button on the right.
+ * (Not a not-black band: the pixel button's dark outline would disappear on it.)
+ */
 
-.gq-section { padding: 64px 16px; }
+.gq-section {
+  padding: clamp(24px, 5vw, 64px) var(--gq-gutter);
+  color: var(--gq-ink);
+  font-family: var(--gq-font);
+  animation: gq-fade-up 0.6s var(--gq-ease) both;
+}
 .gq-section__inner {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'title button'
+    'text  button';
   align-items: center;
-  gap: 16px;
-  max-width: 720px;
-  margin: 0 auto;
-  text-align: center;
+  gap: 12px 48px;
+  padding: clamp(28px, 5vw, 56px);
+  border-radius: var(--gq-radius);
+  background: #f2f5f2;
+  text-align: left;
+}
+.gq-section__title {
+  grid-area: title;
+  margin: 0;
+  font-family: var(--gq-font);
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: inherit;
+}
+.gq-section__text {
+  grid-area: text;
+  max-width: 40ch;
+  margin: 0;
+  font-size: clamp(1rem, 1.6vw, 1.125rem);
+  line-height: 1.5;
+  color: var(--gq-muted);
+}
+.gq-section .gq-btn {
+  grid-area: button;
+  justify-self: end;
+}
+
+@keyframes gq-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
 }
 
 /* ---------------------------------------------------------------- pixel button */
@@ -39,11 +110,11 @@ html.gq-lock { overflow: hidden; }
  *   `outline` doesn't change the layout, and (unlike a shadow) it isn't removed in forced-colors mode.
  */
 .gq-btn {
-  --bg: #5c9b3a;      /* fill */
-  --strip: #7dbf52;   /* top strip */
-  --shade: #3f6e28;   /* bottom shadow */
-  --edge: #1b1f1a;    /* dark outline */
-  --fg: #fff;         /* label */
+  --bg: #5c9b3a; /* fill */
+  --strip: #7dbf52; /* top strip */
+  --shade: #3f6e28; /* bottom shadow */
+  --edge: #1b1f1a; /* dark outline */
+  --fg: #fff; /* label */
 
   appearance: none;
   -webkit-tap-highlight-color: transparent;
@@ -60,7 +131,7 @@ html.gq-lock { overflow: hidden; }
   font: inherit;
   font-weight: 800;
   line-height: 1;
-  letter-spacing: .1em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--fg);
   background: var(--bg);
@@ -90,7 +161,9 @@ html.gq-lock { overflow: hidden; }
   outline: 2px solid var(--gq-btn-focus);
   outline-offset: var(--gq-px);
 }
-.gq-btn:focus:not(:focus-visible) { outline: none; }
+.gq-btn:focus:not(:focus-visible) {
+  outline: none;
+}
 
 /* Pressed: darkest fill, no top strip or bottom shadow, so it looks pushed in */
 .gq-btn:active:not(:disabled) {
@@ -111,12 +184,16 @@ html.gq-lock { overflow: hidden; }
 
 /* Windows high contrast removes box-shadows; keep a visible border */
 @media (forced-colors: active) {
-  .gq-btn { border: 2px solid ButtonText; }
+  .gq-btn {
+    border: 2px solid ButtonText;
+  }
 }
 
 /* ---------------------------------------------------------------- modal */
 
-.gq-modal[hidden] { display: none; }
+.gq-modal[hidden] {
+  display: none;
+}
 .gq-modal {
   position: fixed;
   inset: 0;
@@ -124,20 +201,615 @@ html.gq-lock { overflow: hidden; }
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(0, 0, 0, .6);
+  background: rgba(0, 20, 0, 0.72);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
-/* TODO: .gq-modal__dialog, header, body, footer (flex, space-between) */
+.gq-modal:not([hidden]) {
+  animation: gq-fade 0.2s ease-out;
+}
+
+/* White panel: progress / content / footer stacked; only the content scrolls */
+.gq-modal__content-wrapper {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(760px, 100%);
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow: hidden;
+  border-radius: var(--gq-radius);
+  background: var(--gq-surface);
+  color: var(--gq-ink);
+  font-family: var(--gq-font);
+  text-align: left;
+  box-shadow: 0 24px 64px rgba(0, 20, 0, 0.35);
+  animation: gq-rise 0.35s var(--gq-ease);
+}
+
+.gq-modal__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--gq-ink);
+  font-size: 0; /* hide the "Close" text visually; screen readers still read it */
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.gq-modal__close::before {
+  content: '\00d7';
+  font-size: 28px;
+  line-height: 1;
+}
+.gq-modal__close:hover {
+  background: var(--gq-growth-soft);
+}
+
+.gq-modal__progress-wrapper {
+  padding: 28px 64px 20px; /* sides clear the close button and keep the bar centred */
+  border-bottom: 1px solid var(--gq-line);
+}
+
+.gq-modal__content {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 32px;
+}
+
+.gq-modal__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 32px;
+  border-top: 1px solid var(--gq-line);
+}
+
+/* Footer buttons: GAIN pills. Back = outline (first), Next = growth green (last). */
+.gq-modal__footer__button {
+  min-height: 44px;
+  padding: 10px 22px;
+  border: 1px solid var(--gq-ink);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gq-ink);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    border-color 0.2s;
+}
+.gq-modal__footer__button:hover:not(:disabled) {
+  background: var(--gq-ink);
+  color: var(--gq-surface);
+}
+.gq-modal__footer__button:last-child {
+  margin-left: auto; /* stays right-aligned when Back is hidden on step 1 */
+  border-color: var(--gq-growth);
+  background: var(--gq-growth);
+}
+.gq-modal__footer__button:last-child:hover:not(:disabled) {
+  border-color: var(--gq-ink);
+  background: var(--gq-ink);
+  color: var(--gq-growth);
+}
+.gq-modal__footer__button:disabled {
+  border-color: var(--gq-line);
+  background: #f1f3f1;
+  color: rgba(0, 20, 0, 0.35);
+  cursor: not-allowed;
+}
+.gq-modal__footer__button:focus-visible,
+.gq-modal__close:focus-visible {
+  outline: 2px solid var(--gq-blue);
+  outline-offset: 2px;
+}
+
+@keyframes gq-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes gq-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
 
 /* ---------------------------------------------------------------- progress bar (Figure 2) */
-/* TODO: .gq-progress (flex), .gq-progress__step.is-active / .is-complete / .is-next,
-   connector line between steps, green check badge on completed steps */
+/*
+ * Markup: .gq-progress > .gq-progress__item (--complete | --active | --next)
+ *           > .gq-progress__item__label + .gq-progress__item__connector
+ * - The circle is the item's ::before, numbered with a CSS counter.
+ * - The connector runs from this circle's centre to the next one's; the last is hidden.
+ * - The green check badge is the item's ::after, only on completed steps.
+ */
+.gq-progress {
+  --circle: 40px;
+  display: flex;
+  counter-reset: gq-step;
+  margin: 0;
+  padding: 0;
+}
 
-/* ---------------------------------------------------------------- options + results */
-/* TODO: .gq-options (grid, auto-fill minmax), .gq-option (checkbox/radio card),
-   .gq-results, .gq-card (case study / article), .gq-badge--exact / --related, .gq-summary */
+.gq-progress__item {
+  position: relative;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  counter-increment: gq-step;
+}
+
+/* Circle */
+.gq-progress__item::before {
+  content: counter(gq-step);
+  position: relative;
+  z-index: 1; /* above the connector */
+  display: grid;
+  place-items: center;
+  width: var(--circle);
+  height: var(--circle);
+  border: 2px solid var(--gq-blue-soft);
+  border-radius: 50%;
+  background: var(--gq-surface);
+  color: var(--gq-blue);
+  font-family: var(--gq-font-mono);
+  font-weight: 700;
+  box-sizing: border-box;
+  transition:
+    background-color 0.3s,
+    border-color 0.3s,
+    color 0.3s,
+    box-shadow 0.3s;
+}
+
+.gq-progress__item__label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--gq-blue);
+}
+
+/* Connector: centre of this circle -> centre of the next. The blue fill grows in. */
+.gq-progress__item__connector {
+  position: absolute;
+  top: calc(var(--circle) / 2 - 2px);
+  left: 50%;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(var(--gq-blue), var(--gq-blue)) left / 0 100% no-repeat var(--gq-blue-soft);
+  transition: background-size 0.5s var(--gq-ease);
+}
+.gq-progress__item:last-child .gq-progress__item__connector {
+  display: none;
+}
+
+/* Completed: blue circle, blue connector, green check */
+.gq-progress__item--complete::before {
+  border-color: var(--gq-blue);
+  background: var(--gq-blue);
+  color: #fff;
+}
+.gq-progress__item--complete .gq-progress__item__connector {
+  background-size: 100% 100%;
+}
+.gq-progress__item--complete::after {
+  content: '\2713';
+  position: absolute;
+  z-index: 2;
+  top: -4px;
+  left: calc(50% + var(--circle) / 2 - 12px);
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--gq-surface);
+  border-radius: 50%;
+  background: var(--gq-check);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  animation: gq-pop 0.3s var(--gq-ease);
+}
+
+/* Active: blue circle with a soft ring, bold label */
+.gq-progress__item--active::before {
+  border-color: var(--gq-blue);
+  background: var(--gq-blue);
+  color: #fff;
+  box-shadow: 0 0 0 5px var(--gq-blue-soft);
+}
+.gq-progress__item--active .gq-progress__item__label {
+  font-weight: 700;
+  color: var(--gq-ink);
+}
+
+/* Next: white circle (the default above) */
+
+@keyframes gq-pop {
+  from {
+    transform: scale(0);
+  }
+}
+
+/* ---------------------------------------------------------------- question step */
+
+.gq-question {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: gq-fade-up 0.35s var(--gq-ease);
+}
+.gq-question__title {
+  margin: 0;
+  font-family: var(--gq-font);
+  font-size: clamp(1.5rem, 3vw, 1.75rem);
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--gq-ink);
+}
+
+.gq-question__options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+/* The label is the click target; the span inside it is the visible card */
+.gq-question__option {
+  position: relative;
+  display: flex;
+  cursor: pointer;
+}
+.gq-question__option input {
+  position: absolute; /* hidden visually, still focusable and announced */
+  opacity: 0;
+  pointer-events: none;
+}
+.gq-question__option__label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 14px 16px;
+  border: 1px solid var(--gq-line);
+  border-radius: 12px;
+  background: var(--gq-surface);
+  font-size: 1rem;
+  line-height: 1.3;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s,
+    box-shadow 0.2s;
+}
+/* Indicator: square for checkboxes, round for radios */
+.gq-question__option__label::before {
+  content: '';
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid rgba(0, 20, 0, 0.35);
+  border-radius: 5px;
+  box-sizing: border-box;
+  color: var(--gq-ink);
+  font-size: 12px;
+  font-weight: 700;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
+}
+.gq-question__option input[type='radio'] + .gq-question__option__label::before {
+  border-radius: 50%;
+}
+
+.gq-question__option:hover .gq-question__option__label {
+  border-color: var(--gq-ink);
+}
+.gq-question__option input:checked + .gq-question__option__label {
+  border-color: var(--gq-ink);
+  background: var(--gq-growth-soft);
+  box-shadow: inset 0 0 0 1px var(--gq-ink);
+}
+.gq-question__option input:checked + .gq-question__option__label::before {
+  border-color: var(--gq-ink);
+  background: var(--gq-growth);
+}
+.gq-question__option input[type='checkbox']:checked + .gq-question__option__label::before {
+  content: '\2713';
+}
+.gq-question__option input[type='radio']:checked + .gq-question__option__label::before {
+  box-shadow: inset 0 0 0 3px var(--gq-surface);
+}
+.gq-question__option input:focus-visible + .gq-question__option__label {
+  outline: 2px solid var(--gq-blue);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- results step */
+
+.gq-results {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  animation: gq-fade-up 0.35s var(--gq-ease);
+}
+.gq-results__title {
+  margin: 0;
+  font-family: var(--gq-font);
+  font-size: clamp(1.75rem, 3.5vw, 2rem);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+/* Blocks that don't apply to this combination may render empty */
+.gq-results > :empty {
+  display: none;
+}
+
+/* Email call-out: dark band with a growth-green link */
+.gq-results__email {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 20px 24px;
+  border-radius: 12px;
+  background: var(--gq-ink);
+  color: var(--gq-surface);
+}
+.gq-results__email__text {
+  margin: 0;
+}
+.gq-results__email__link {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--gq-growth);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.gq-results__email__link:hover {
+  text-decoration: underline;
+}
+
+/* Case study + article cards */
+.gq-results__case-studies,
+.gq-results__articles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+.gq-results__case-study,
+.gq-results__article {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+  border: 1px solid var(--gq-line);
+  border-radius: 12px;
+  background: var(--gq-surface);
+  padding-bottom: 16px;
+  transition:
+    transform 0.25s var(--gq-ease),
+    box-shadow 0.25s,
+    border-color 0.25s;
+}
+.gq-results__case-study:hover,
+.gq-results__article:hover {
+  transform: translateY(-3px);
+  border-color: var(--gq-ink);
+  box-shadow: 0 10px 28px rgba(0, 20, 0, 0.12);
+}
+.gq-results__case-study > :not(img),
+.gq-results__article > :not(img) {
+  margin: 0 16px;
+}
+.gq-results__case-study__image,
+.gq-results__article__image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #eef1ee;
+}
+.gq-results__case-study__title,
+.gq-results__article__title {
+  font-family: var(--gq-font);
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.gq-results__case-study__description,
+.gq-results__article__description {
+  font-size: 0.875rem;
+  color: var(--gq-muted);
+}
+.gq-results__case-study > .gq-results__case-study__link,
+.gq-results__article > .gq-results__article__link {
+  margin-top: auto; /* pin to the bottom of the card */
+  padding-top: 4px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--gq-ink);
+  text-decoration: none;
+}
+.gq-results__case-study__link::after,
+.gq-results__article__link::after {
+  content: ' \2197'; /* ↗ like the site's arrow links */
+}
+.gq-results__case-study__link:hover,
+.gq-results__article__link:hover {
+  text-decoration: underline;
+}
+
+/* "Exact match" / "Related" badge */
+.gq-badge {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+.gq-badge--exact {
+  background: var(--gq-growth);
+  color: var(--gq-ink);
+}
+.gq-badge--related {
+  border: 1px solid var(--gq-line);
+  color: var(--gq-muted);
+}
+
+/* "No case studies" message */
+.gq-results__empty {
+  margin: 0;
+  padding: 20px;
+  border: 1px dashed rgba(0, 20, 0, 0.3);
+  border-radius: 12px;
+  color: var(--gq-muted);
+}
+.gq-results__empty a {
+  color: var(--gq-ink);
+  font-weight: 700;
+}
+
+/* Summary of Q1 + Q2 picks */
+.gq-results__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 20px;
+  border-top: 1px solid var(--gq-line);
+}
+.gq-results__summary__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.gq-results__summary__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gq-results__summary__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 14px;
+  border: 1px solid var(--gq-line);
+  border-radius: 999px;
+  font-size: 0.875rem;
+}
+.gq-results__summary__item__link {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--gq-growth-soft);
+  color: var(--gq-ink);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.gq-results__summary__item__link:hover {
+  background: var(--gq-growth);
+}
 
 /* ---------------------------------------------------------------- responsive */
 
 @media (max-width: 767px) {
-  /* TODO: full-height modal, hide progress labels, single-column options */
+  /* Section: stack, button full-width-ish under the copy */
+  .gq-section__inner {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'title'
+      'text'
+      'button';
+    gap: 16px;
+  }
+  .gq-section .gq-btn {
+    justify-self: start;
+    margin-top: 8px;
+  }
+
+  /* Modal: full-screen sheet */
+  .gq-modal {
+    padding: 0;
+  }
+  .gq-modal__content-wrapper {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+  }
+  .gq-modal__progress-wrapper {
+    padding: 60px 8px 16px; /* close button sits above the bar */
+  }
+  .gq-modal__content {
+    padding: 24px 16px;
+  }
+  .gq-modal__footer {
+    padding: 12px 16px;
+  }
+
+  .gq-progress {
+    --circle: 32px;
+  }
+  .gq-progress__item__label {
+    font-size: 0.6875rem;
+    letter-spacing: 0;
+  }
+  .gq-progress__item--complete::after {
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+  }
+
+  .gq-question__options {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gq-section,
+  .gq-modal,
+  .gq-modal__content-wrapper,
+  .gq-question,
+  .gq-results,
+  .gq-progress__item::after {
+    animation: none !important;
+  }
+  .gq-section *,
+  .gq-modal *,
+  .gq-modal *::before {
+    transition: none !important;
+  }
 }
