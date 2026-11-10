@@ -216,51 +216,144 @@
   var isOpen = false;
 
   // References to our long-lived elements, so behaviour code never has to search for them.
-  var root = { overlay: null, drawer: null, toggle: null, track: null, counter: null, prev: null, next: null };
+  var root = {
+    overlay: null,
+    drawer: null,
+    toggle: null,
+    panel: null,
+    track: null,
+    counter: null,
+    prev: null,
+    next: null
+  };
 
+  /*
+   * One slide (Figure 4's card, with the brief's image on top):
+   *   image → industry tag (tooltip) → title → service description → "View case study"
+   * The tag is a <button>, not a <span>, so it can be focused: the CSS tooltip (PLAN 2.6)
+   * then also opens on keyboard focus and on tap, not only on mouse hover.
+   * data-tooltip holds the text the CSS shows; aria-label gives screen readers the same
+   * information, because CSS-generated content isn't reliably read out.
+   * Missing image or description → that part is skipped (el() ignores null children).
+   */
   function buildSlide(cs, descriptions) {
-    // TODO (PLAN 2.2): image (loading="lazy"), title, industry tag, service description
-    // (descriptions[norm(cs.service)]), "View case study" link to cs.url.
-    // Tag = a <button> (focusable, so the tooltip also works on keyboard focus and tap)
-    // with data-tooltip="Service · Industry" — the tooltip itself is CSS (PLAN 2.6).
-    return el('article', { class: NS + '-slide' });
+    var description = descriptions[norm(cs.service)] || '';
+    var tooltip = [cs.service, cs.industry].filter(Boolean).join(' · ');
+
+    return el('article', { class: NS + '-slide' }, [
+      cs.image
+        ? el('img', { class: NS + '-slide__image', src: cs.image, alt: '', loading: 'lazy', decoding: 'async' })
+        : null,
+      el('div', { class: NS + '-slide__body' }, [
+        cs.industry
+          ? el(
+              'button',
+              {
+                class: NS + '-tag',
+                type: 'button',
+                'data-tooltip': tooltip,
+                'aria-label': 'Industry: ' + cs.industry + '. Service: ' + cs.service
+              },
+              [
+                document.createTextNode(cs.industry + ' '),
+                el('span', { class: NS + '-tag__icon', 'aria-hidden': 'true', text: 'ⓘ' }) // ⓘ
+              ]
+            )
+          : null,
+        el('h3', { class: NS + '-slide__title', text: cs.title }),
+        description ? el('p', { class: NS + '-slide__description', text: description }) : null,
+        // The aria-label names the case study: ten links all called "View case study"
+        // can't be told apart in a screen reader's list of links.
+        el('a', {
+          class: NS + '-slide__link',
+          href: cs.url,
+          text: 'View case study',
+          'aria-label': 'View case study: ' + cs.title
+        })
+      ])
+    ]);
   }
 
+  /*
+   * Builds the overlay and the drawer once, appends them to <body>, and keeps references
+   * in `root`. Both top-level elements carry data-gain="gd", which is how destroy() finds
+   * them. Behaviour (toggle, arrows, drag) is wired after this, in the waitFor().then().
+   *
+   *   .gd-overlay
+   *   aside.gd-drawer
+   *     .gd-tab                (absolutely positioned on top of the panel, see the CSS)
+   *       button.gd-tab__toggle     "Our work" + chevron
+   *       .gd-tab__nav              ‹  1/3  ›   (only visible while open)
+   *     .gd-panel#gd-panel
+   *       .gd-track                 the slides
+   *
+   * Lenis (learned in Task 1): the site's smooth scroll takes over wheel/trackpad gestures.
+   * `data-lenis-prevent-horizontal` on the track hands horizontal swipes back to the
+   * slider, while vertical wheel still scrolls the page. Page scroll is NOT locked while
+   * open: "close when scrolling hits the bottom" needs the page to scroll.
+   */
   function build() {
-    // TODO (PLAN 2.2): markup — mark every root element with data-gain="gd" (destroy()
-    // removes by that), and store references in `root`.
-    //
-    // <div class="gd-overlay" data-gain="gd"></div>
-    // <aside class="gd-drawer" data-gain="gd" aria-label="Case studies">
-    //   <div class="gd-tab">                       (absolutely positioned on top of the panel)
-    //     <button class="gd-tab__toggle" aria-expanded="false" aria-controls="gd-panel">
-    //       Case studies <span class="gd-chevron" aria-hidden="true"></span>
-    //     </button>
-    //     <div class="gd-tab__nav"> prev  "1/3"  next </div>   (only visible when open)
-    //   </div>
-    //   <div class="gd-panel" id="gd-panel">
-    //     <div class="gd-track" data-lenis-prevent-horizontal> ...slides </div>
-    //   </div>
-    // </aside>
-    //
-    // Lenis (learned in Task 1): the site's Lenis smooth-scroll hijacks wheel/trackpad
-    // gestures. `data-lenis-prevent-horizontal` on the track lets horizontal trackpad
-    // swipes scroll the slider natively, while vertical wheel still scrolls the page.
-    // Don't lock page scroll while open: "close when scrolling hits the bottom" needs it.
-    void buildSlide;
+    var overlay = el('div', { class: NS + '-overlay', 'data-gain': NS, 'aria-hidden': 'true' });
+
+    var toggle = el(
+      'button',
+      { class: NS + '-tab__toggle', type: 'button', 'aria-expanded': 'false', 'aria-controls': NS + '-panel' },
+      [
+        el('span', { class: NS + '-tab__label', text: 'Our work' }),
+        el('span', { class: NS + '-chevron', 'aria-hidden': 'true' })
+      ]
+    );
+
+    var prev = el('button', { class: NS + '-tab__arrow', type: 'button', 'aria-label': 'Previous page', text: '‹' }); // ‹
+    var next = el('button', { class: NS + '-tab__arrow', type: 'button', 'aria-label': 'Next page', text: '›' }); // ›
+    // aria-live: screen readers announce "2/3" when the page changes
+    var counter = el('span', { class: NS + '-tab__counter', 'aria-live': 'polite' });
+
+    var track = el(
+      'div',
+      { class: NS + '-track', 'data-lenis-prevent-horizontal': '' },
+      data.caseStudies.map(function (cs) {
+        return buildSlide(cs, data.descriptions);
+      })
+    );
+    var panel = el('div', { class: NS + '-panel', id: NS + '-panel' }, [track]);
+
+    var drawer = el('aside', { class: NS + '-drawer', 'data-gain': NS, 'aria-label': 'Our work' }, [
+      el('div', { class: NS + '-tab' }, [toggle, el('div', { class: NS + '-tab__nav' }, [prev, counter, next])]),
+      panel
+    ]);
+
+    root.overlay = overlay;
+    root.drawer = drawer;
+    root.toggle = toggle;
+    root.panel = panel;
+    root.track = track;
+    root.counter = counter;
+    root.prev = prev;
+    root.next = next;
+
+    document.body.append(overlay, drawer);
   }
 
   /* ---------------------------------------------------------------- behaviour */
 
   /*
-   * One class on <html> drives the open state; CSS animates the slide and the chevron.
-   * TODO (PLAN 2.3): aria-expanded on the toggle; root.drawer panel `inert` when closed
-   * (property, not attribute — see el() gotchas) so hidden slides can't be tabbed to;
-   * Esc closes (as in Task 1).
+   * The one place the open state changes (tab, overlay, Esc, page bottom all call this).
+   * - A class on <html> drives the CSS: the drawer slides, the chevron turns, the overlay
+   *   fades, the tab turns white and shows the page nav.
+   * - aria-expanded tells screen readers whether the toggle's panel is showing.
+   * - `inert` on the closed panel: it's off-screen but still in the DOM, so without this
+   *   Tab would walk through 20 invisible links. Set as a property (see el() gotchas).
+   * - If focus was inside the panel when it closes (Esc, or reaching the page bottom),
+   *   inert would drop it to <body>; move it back to the toggle instead.
    */
   function setOpen(open) {
+    if (!root.drawer) return; // __gainDrawer.open() called before build() ran
     isOpen = open;
     document.documentElement.classList.toggle(NS + '-open', open);
+    root.toggle.setAttribute('aria-expanded', String(open));
+    if (!open && root.panel.contains(document.activeElement)) root.toggle.focus();
+    root.panel.inert = !open;
   }
 
   /*
@@ -302,6 +395,7 @@
   /* ---------------------------------------------------------------- lifecycle */
 
   // Undo everything: listeners (abort), our elements, the open class.
+  // (inert/aria-expanded live on our own elements, so removing them removes those too.)
   function destroy() {
     controller.abort();
     document.querySelectorAll('[data-gain="' + NS + '"]').forEach(function (n) {
@@ -334,8 +428,19 @@
       if (controller.signal.aborted) return;
       data = { caseStudies: getCaseStudies(), descriptions: getServiceDescriptions() };
       build();
-      // TODO (PLAN 2.3/2.4): wire tab toggle, overlay click, Esc, prev/next,
-      // track scroll -> updateCounter, enableDrag(root.track)
+      setOpen(false); // sets the initial aria-expanded + inert
+
+      on(root.toggle, 'click', function () {
+        setOpen(!isOpen);
+      });
+      on(root.overlay, 'click', function () {
+        setOpen(false);
+      });
+      on(document, 'keydown', function (e) {
+        if (e.key === 'Escape' && isOpen) setOpen(false);
+      });
+
+      // TODO (PLAN 2.4): prev/next, track scroll -> updateCounter, enableDrag(root.track)
       on(window, 'scroll', closeAtPageBottom, { passive: true });
       on(window, 'resize', updateCounter);
       void scrollByPage;

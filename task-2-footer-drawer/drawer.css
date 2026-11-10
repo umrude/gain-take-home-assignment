@@ -44,7 +44,7 @@
   position: fixed;
   inset: 0;
   z-index: calc(var(--gd-z) - 1);
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 20, 0, 0.45); /* not-black, see-through */
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.3s;
@@ -74,16 +74,109 @@ html.gd-open .gd-drawer {
   transform: translateY(0);
 }
 
-/* TODO (PLAN 2.3/2.7): .gd-tab { position: absolute; bottom: 100%; left: 50%;
-   transform: translateX(-50%); display: flex; ... }, .gd-tab__nav hidden when closed.
-   At 375px, check the tab doesn't overlap Cookiebot's button (bottom left). */
+/* ---------------------------------------------------------------- tab (Figures 3 + 4) */
+/*
+ * Centred on top of the panel, with rounded top corners so it reads as part of it.
+ * Closed: growth-green, only the toggle. Open: white like the panel (they merge), and
+ * the page nav appears next to the toggle: "OUR WORK ⌄ | ‹ 1/3 ›".
+ */
+.gd-tab {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  border-radius: var(--gd-radius) var(--gd-radius) 0 0;
+  background: var(--gd-tab-bg);
+  color: var(--gd-tab-fg);
+  box-shadow: 0 -4px 16px rgba(0, 20, 0, 0.12);
+  white-space: nowrap;
+  transition: background-color 0.3s;
+}
+html.gd-open .gd-tab {
+  background: var(--gd-panel-bg);
+  box-shadow: none; /* sits flush on the panel, which has its own shadow */
+}
 
+/* Buttons in the tab: reset the browser's button look, keep a 44px touch target */
+.gd-tab__toggle,
+.gd-tab__arrow {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.gd-tab__toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+/* Chevron: two borders of a square, turned 45° to point up. The ::before draws it and
+   the span rotates, so the 180° flip doesn't fight the 45° that makes the shape. */
 .gd-chevron {
-  display: inline-block;
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
   transition: transform 0.3s var(--gd-ease);
+}
+.gd-chevron::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  margin-top: 4px; /* optical centre once rotated */
+  border-top: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+  transform: rotate(45deg);
 }
 html.gd-open .gd-chevron {
   transform: rotate(180deg);
+}
+
+/* Page nav: only while open. display: none also takes the arrows out of the tab order. */
+.gd-tab__nav {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px 0 8px;
+  border-left: 1px solid var(--gd-line);
+}
+html.gd-open .gd-tab__nav {
+  display: flex;
+}
+.gd-tab__arrow {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.375rem;
+  line-height: 1;
+  transition: background-color 0.2s;
+}
+.gd-tab__arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.gd-tab__counter {
+  min-width: 3ch; /* "1/3" → "2/3" doesn't shift the arrows */
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.gd-tab__toggle:focus-visible,
+.gd-tab__arrow:focus-visible {
+  outline: 2px solid var(--gd-ink);
+  outline-offset: -4px;
 }
 
 /* ---------------------------------------------------------------- slider */
@@ -91,11 +184,24 @@ html.gd-open .gd-chevron {
 .gd-panel {
   width: 100%;
   background: var(--gd-panel-bg);
+  transition: box-shadow 0.4s;
   color: var(--gd-ink);
   font-family: var(--gd-font);
 }
-/* Mono uppercase for labels (tab, counter, tag, button), like the site's nav and Task 1.
-   TODO: add the class names here once they exist in build(). */
+/* Shadow only while open: when closed the panel sits just below the screen, and an
+   upward shadow would show as a glow along the bottom edge. */
+html.gd-open .gd-panel {
+  box-shadow: 0 -8px 32px rgba(0, 20, 0, 0.16);
+}
+/* Mono uppercase for labels (tab, counter, tag, button), like the site's nav and Task 1 */
+.gd-tab__label,
+.gd-tab__counter,
+.gd-tag,
+.gd-slide__link {
+  font-family: var(--gd-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 .gd-track {
   display: grid;
   grid-auto-flow: column;
@@ -131,7 +237,14 @@ html.gd-open .gd-chevron {
 /* Learned in Task 1: on touch screens :hover sticks to the last tapped element, so put
    hover-only effects (tab, arrows, slide lift) inside this block. */
 @media (hover: hover) {
-  /* TODO */
+  html:not(.gd-open) .gd-tab:hover {
+    background: var(--gd-ink); /* like the site's green buttons: dark on hover */
+    color: var(--gd-growth);
+  }
+  .gd-tab__arrow:not(:disabled):hover {
+    background: var(--gd-growth-soft);
+  }
+  /* TODO (PLAN 2.7): slide lift */
 }
 
 /* ---------------------------------------------------------------- breakpoints */
@@ -151,6 +264,8 @@ html.gd-open .gd-chevron {
 @media (prefers-reduced-motion: reduce) {
   .gd-overlay,
   .gd-drawer,
+  .gd-tab,
+  .gd-tab__arrow,
   .gd-chevron {
     transition: none;
   }
