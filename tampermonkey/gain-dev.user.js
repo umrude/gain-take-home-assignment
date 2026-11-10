@@ -26,28 +26,34 @@
 (function () {
   'use strict';
 
-  var path = location.pathname;
-  var isHome = path === '/';
-  var isBlog = /^\/blog(\/|$)/.test(path); // also /blog/page/2/ etc.
+  const path = location.pathname;
+  const isHome = path === '/';
+  const isBlog = /^\/blog(\/|$)/.test(path); // also /blog/page/2/ etc.
 
   // Flip `enabled` to test a task on its own.
-  var TASKS = [
+  const TASKS = [
     { id: 'task1', name: 'questionnaire', enabled: true, when: isHome },
     { id: 'task2', name: 'drawer', enabled: true, when: isHome },
     { id: 'task3', name: 'pokemon', enabled: true, when: isBlog }
   ];
 
   function read(resource) {
-    try { return GM_getResourceText(resource) || ''; } catch (e) { return ''; }
+    try {
+      return GM_getResourceText(resource) || '';
+    } catch (e) {
+      return '';
+    }
   }
 
   // At document-start <head> may not exist yet; <html> always does.
-  function target() { return document.head || document.documentElement; }
+  function target() {
+    return document.head || document.documentElement;
+  }
 
   function injectCss(task) {
-    var css = read(task.id + '_css');
-    var id = 'gain-css-' + task.name;
-    var style = document.getElementById(id) || document.createElement('style');
+    const css = read(task.id + '_css');
+    const id = 'gain-css-' + task.name;
+    const style = document.getElementById(id) || document.createElement('style');
     style.id = id;
     style.textContent = css;
     if (!style.parentNode) target().appendChild(style);
@@ -55,8 +61,8 @@
   }
 
   function injectJs(task) {
-    var js = read(task.id + '_js');
-    var script = document.createElement('script');
+    const js = read(task.id + '_js');
+    const script = document.createElement('script');
     // sourceURL gives the code a name in DevTools > Sources, so breakpoints work.
     script.textContent = js + '\n//# sourceURL=gain-' + task.name + '.js';
     target().appendChild(script); // runs synchronously, in the page context
@@ -66,10 +72,19 @@
 
   TASKS.forEach(function (task) {
     if (!task.enabled || !task.when) return;
-    var cssLen = injectCss(task);
-    var jsLen = injectJs(task);
+    const cssLen = injectCss(task);
+    const jsLen = injectJs(task);
     // Character counts make it easy to spot a stale cached file after an edit.
-    console.info('[gain-dev] ' + task.name + ' injected at ' + document.readyState +
-      ' (css ' + cssLen + ' chars, js ' + jsLen + ' chars)');
+    console.info(
+      '[gain-dev] ' +
+        task.name +
+        ' injected at ' +
+        document.readyState +
+        ' (css ' +
+        cssLen +
+        ' chars, js ' +
+        jsLen +
+        ' chars)'
+    );
   });
 })();

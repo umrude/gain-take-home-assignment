@@ -19,8 +19,8 @@
 (function () {
   'use strict';
 
-  var NS = 'gq'; // class/id prefix for everything this script creates
-  var INSTANCE_KEY = '__gainQuestionnaire';
+  const NS = 'gq'; // class/id prefix for everything this script creates
+  const INSTANCE_KEY = '__gainQuestionnaire';
 
   /*
    * Re-run safety (A/B scripts often run more than once): if a previous copy of this
@@ -38,22 +38,22 @@
    * (`content-card`, `site-navigation__*`) — then searches inside it.
    * Each returns the element(s) or null, so waitFor() can poll them.
    */
-  var FIND = {
+  const FIND = {
     // Top-level block (direct child of <main>) that holds the <h1>.
     hero: function () {
-      var h1 = document.querySelector('main h1');
+      const h1 = document.querySelector('main h1');
       return h1 && topLevelBlock(h1);
     },
     // "Solutions" item in the top nav -> its submenu links (title + description).
     solutionsLinks: function () {
-      var item = closestOf(findByText('.site-navigation__link', 'Solutions'), '.site-navigation__item');
-      var links = item && item.querySelectorAll('.site-navigation__submenu-link');
+      const item = closestOf(findByText('.site-navigation__link', 'Solutions'), '.site-navigation__item');
+      const links = item && item.querySelectorAll('.site-navigation__submenu-link');
       return links && links.length ? links : null;
     },
     // "Our Sectors" is a <p> label, not a heading; the sector links sit in the same columns block.
     sectorLinks: function () {
-      var block = closestOf(findByText('main p', 'Our Sectors'), '.wp-block-columns');
-      var links = block && block.querySelectorAll('a.wp-block-button__link');
+      const block = closestOf(findByText('main p', 'Our Sectors'), '.wp-block-columns');
+      const links = block && block.querySelectorAll('a.wp-block-button__link');
       return links && links.length ? links : null;
     },
     // First content slider after the "Work" / "Insights" heading.
@@ -72,10 +72,10 @@
   };
 
   // Questions 3 & 4 are defined by the brief, so they are not scraped.
-  var USEFUL = { cases: 'Case studies like mine', articles: 'Articles to read', talk: 'Talk to someone' };
-  var TIMING = { now: 'Right away', soon: 'In the next 3 months', exploring: 'Just exploring' };
-  var HEADINGS = { now: 'Let’s talk this week', soon: 'Here’s where to start', exploring: 'Take your time' };
-  var WORK_URL = 'https://www.thisisgain.com/work/';
+  const USEFUL = { cases: 'Case studies like mine', articles: 'Articles to read', talk: 'Talk to someone' };
+  const TIMING = { now: 'Right away', soon: 'In the next 3 months', exploring: 'Just exploring' };
+  const HEADINGS = { now: 'Let’s talk this week', soon: 'Here’s where to start', exploring: 'Take your time' };
+  const WORK_URL = 'https://www.thisisgain.com/work/';
 
   /*
    * Every listener goes through on(), which registers it with one AbortController.
@@ -83,8 +83,8 @@
    * so we never need to keep references to handlers just to remove them later.
    * This matters most for listeners on `document` (Esc), which outlive our elements.
    */
-  var controller = new AbortController();
-  var on = function (el, type, fn) {
+  const controller = new AbortController();
+  const on = function (el, type, fn) {
     el.addEventListener(type, fn, { signal: controller.signal });
   };
 
@@ -100,22 +100,24 @@
    * It also cleans up after itself on timeout and if the instance is destroyed mid-wait.
    */
   function waitFor(finder, timeout) {
-    var check =
+    const check =
       typeof finder === 'function'
         ? finder
         : function () {
             return document.querySelector(finder);
           };
     return new Promise(function (resolve, reject) {
-      var found = check();
+      const found = check();
       if (found) return resolve(found);
-      var queued = false;
-      var obs = new MutationObserver(function () {
+      let queued = false;
+      // obs and timer use each other, but only inside callbacks that run later (after both
+      // lines below have run), so const is safe even though timer is declared second.
+      const obs = new MutationObserver(function () {
         if (queued) return;
         queued = true;
         requestAnimationFrame(function () {
           queued = false;
-          var result = check();
+          const result = check();
           if (result) {
             obs.disconnect();
             clearTimeout(timer);
@@ -124,7 +126,7 @@
         });
       });
       obs.observe(document.documentElement, { childList: true, subtree: true });
-      var timer = setTimeout(function () {
+      const timer = setTimeout(function () {
         obs.disconnect();
         reject(new Error('waitFor timeout'));
       }, timeout || 15000);
@@ -156,7 +158,7 @@
 
   // Walk up to the ancestor that is a direct child of <main> (one page "section").
   function topLevelBlock(node) {
-    var main = node.closest('main');
+    const main = node.closest('main');
     while (node && node.parentElement && node.parentElement !== main) node = node.parentElement;
     return main ? node : null;
   }
@@ -168,12 +170,12 @@
    * truthy when the slider comes later in the document than the heading.
    */
   function cardsAfterHeading(label) {
-    var heading = findByText('main h2', label);
+    const heading = findByText('main h2', label);
     if (!heading) return null;
-    var slider = Array.prototype.find.call(document.querySelectorAll('.content-slider'), function (s) {
+    const slider = Array.prototype.find.call(document.querySelectorAll('.content-slider'), function (s) {
       return heading.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING;
     });
-    var cards = slider && slider.querySelectorAll('.content-card');
+    const cards = slider && slider.querySelectorAll('.content-card');
     return cards && cards.length ? cards : null;
   }
 
@@ -181,10 +183,10 @@
   // `data-u` attribute holds the encoded real URL.
   function imageUrl(img) {
     if (!img) return '';
-    var src = img.currentSrc || img.src || '';
+    const src = img.currentSrc || img.src || '';
     if (src.indexOf('data:image/svg+xml;base64,') !== 0) return src;
     try {
-      var m = atob(src.split(',')[1]).match(/data-u="([^"]+)"/);
+      const m = atob(src.split(',')[1]).match(/data-u="([^"]+)"/);
       return m ? decodeURIComponent(m[1]) : '';
     } catch (e) {
       return '';
@@ -198,19 +200,19 @@
    * following byte XOR the key is one character of the address.
    */
   function decodeCfEmail(hex) {
-    var key = parseInt(hex.substr(0, 2), 16),
-      out = '';
-    for (var i = 2; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.substr(i, 2), 16) ^ key);
+    const key = parseInt(hex.substr(0, 2), 16);
+    let out = '';
+    for (let i = 2; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.substr(i, 2), 16) ^ key);
     return out;
   }
 
   // Card tags and the sector list don't always agree ("Tech & Telcoms" vs "Tech & Telco"),
   // so map a tag onto the sector whose name it equals or starts with.
   function canonicalLabel(raw, labels) {
-    var n = norm(raw);
+    const n = norm(raw);
     return (
       labels.find(function (l) {
-        var m = norm(l);
+        const m = norm(l);
         return n === m || n.indexOf(m) === 0 || m.indexOf(n) === 0;
       }) || raw.trim()
     );
@@ -218,7 +220,7 @@
 
   // Trimmed text of the first `selector` match inside `root`, or '' if missing.
   function textOf(root, selector) {
-    var n = root.querySelector(selector);
+    const n = root.querySelector(selector);
     return n ? n.textContent.replace(/\s+/g, ' ').trim() : '';
   }
 
@@ -227,10 +229,10 @@
    * `return (seen[key] = true)` records the URL and returns true (keep) in one step.
    */
   function uniqueCards(cards) {
-    var seen = {};
+    const seen = {};
     return Array.prototype.filter.call(cards || [], function (c) {
-      var a = c.querySelector('.content-card__link');
-      var key = a ? a.href : '';
+      const a = c.querySelector('.content-card__link');
+      const key = a ? a.href : '';
       if (!key || seen[key]) return false;
       return (seen[key] = true);
     });
@@ -244,7 +246,7 @@
    * later, set the property instead (button.disabled = true, modal.hidden = false).
    */
   function el(tag, attrs, children) {
-    var node = document.createElement(tag);
+    const node = document.createElement(tag);
     Object.keys(attrs || {}).forEach(function (k) {
       if (k === 'text') node.textContent = attrs[k];
       else if (k === 'class') node.className = attrs[k];
@@ -290,7 +292,7 @@
    */
   function getCaseStudies(industries) {
     return uniqueCards(FIND.workCards()).map(function (card) {
-      var tags = Array.prototype.map.call(card.querySelectorAll('.content-tags li'), function (li) {
+      const tags = Array.prototype.map.call(card.querySelectorAll('.content-tags li'), function (li) {
         return li.textContent.trim();
       });
       return {
@@ -323,27 +325,27 @@
    * @returns {string}
    */
   function getEmail() {
-    var node = FIND.footerEmail();
+    const node = FIND.footerEmail();
     if (!node) return '';
     if (/^mailto:/i.test(node.getAttribute('href') || ''))
       return node
         .getAttribute('href')
         .replace(/^mailto:/i, '')
         .split('?')[0];
-    var hex = node.getAttribute('data-cfemail') || (node.getAttribute('href') || '').split('#')[1];
+    const hex = node.getAttribute('data-cfemail') || (node.getAttribute('href') || '').split('#')[1];
     return hex ? decodeCfEmail(hex) : '';
   }
 
   /* ---------------------------------------------------------------- state */
 
-  var data = null; // filled by scrape() on init
+  let data = null; // filled by scrape() on init
 
   /*
    * Everything the UI shows is derived from this object. Multi-answer questions hold
    * arrays, single-answer ones hold a key from USEFUL / TIMING (or null). Answers are
    * kept when the modal is closed, so reopening resumes where the user left off.
    */
-  var state = {
+  const state = {
     step: 0, // 0..3 questions, 4 results
     answers: { services: [], industries: [], useful: null, timing: null }
   };
@@ -353,7 +355,7 @@
    * `multi` decides checkbox vs radio, `label` is the progress-bar text.
    * Adding/reordering a question only needs a change here (+ optionsFor).
    */
-  var STEPS = [
+  const STEPS = [
     { key: 'services', label: 'Services', multi: true, title: 'What do you need help with?' },
     { key: 'industries', label: 'Industry', multi: true, title: 'Which industry are you in?' },
     { key: 'useful', label: 'Goal', multi: false, title: 'What would be most useful right now?' },
@@ -392,7 +394,7 @@
 
   // Arrays need at least one pick; single answers need a value. Drives Next + goTo().
   function isStepAnswered(i) {
-    var v = state.answers[STEPS[i].key];
+    const v = state.answers[STEPS[i].key];
     return Array.isArray(v) ? v.length > 0 : v != null;
   }
 
@@ -413,7 +415,7 @@
    * - Articles: "Articles to read", or "Talk to someone" + "Just exploring".
    */
   function computeResults(answers, d) {
-    var result = {
+    const result = {
       heading: HEADINGS[answers.timing],
       emailTop: answers.timing === 'now' || answers.useful === 'talk', // shown once either way
       caseStudies: null, // [{item, exact}] or [] for the "none" message
@@ -421,16 +423,16 @@
     };
 
     if (answers.useful === 'cases') {
-      var bySvc = function (c) {
+      const bySvc = function (c) {
         return answers.services.indexOf(c.service) > -1;
       };
-      var byInd = function (c) {
+      const byInd = function (c) {
         return answers.industries.indexOf(c.industry) > -1;
       };
-      var exact = d.caseStudies.filter(function (c) {
+      const exact = d.caseStudies.filter(function (c) {
         return bySvc(c) && byInd(c);
       });
-      var related = d.caseStudies.filter(function (c) {
+      const related = d.caseStudies.filter(function (c) {
         return bySvc(c) && !byInd(c);
       });
       result.caseStudies = exact
@@ -455,7 +457,7 @@
   /* ---------------------------------------------------------------- rendering */
 
   // References to our long-lived elements, so render() doesn't have to search for them.
-  var root = {
+  const root = {
     section: null,
     modal: null,
     modalContent: null,
@@ -469,7 +471,7 @@
    * which is how destroy() finds and removes them on a re-run.
    */
   function buildSection(hero) {
-    var section = el('section', { class: NS + '-section', 'data-gain': NS }, [
+    const section = el('section', { class: NS + '-section', 'data-gain': NS }, [
       el('div', { class: NS + '-section__inner' }, [
         el('h2', { class: NS + '-section__title', text: 'Not sure where to start?' }),
         el('p', {
@@ -494,11 +496,11 @@
    *       progress-wrapper | close | content | footer (Back, Next)
    */
   function buildModal() {
-    var closeBtn = el('button', { class: NS + '-modal__close', type: 'button', text: 'Close' });
-    var backBtn = el('button', { class: NS + '-modal__footer__button', type: 'button', text: 'Back' });
-    var nextBtn = el('button', { class: NS + '-modal__footer__button', type: 'button', text: 'Next' });
-    var modalContent = el('div', { class: NS + '-modal__content' });
-    var modalProgressWrapper = el('div', { class: NS + '-modal__progress-wrapper' });
+    const closeBtn = el('button', { class: NS + '-modal__close', type: 'button', text: 'Close' });
+    const backBtn = el('button', { class: NS + '-modal__footer__button', type: 'button', text: 'Back' });
+    const nextBtn = el('button', { class: NS + '-modal__footer__button', type: 'button', text: 'Next' });
+    const modalContent = el('div', { class: NS + '-modal__content' });
+    const modalProgressWrapper = el('div', { class: NS + '-modal__progress-wrapper' });
 
     /*
      * `data-lenis-prevent`: the site smooth-scrolls with Lenis, which turns wheel events
@@ -507,7 +509,7 @@
      * covers the whole viewport, so while the modal is open Lenis leaves scrolling to the
      * browser: the page stays locked (gq-lock) and the modal content scrolls natively.
      */
-    var modal = el(
+    const modal = el(
       'div',
       {
         id: NS + '-modal',
@@ -558,8 +560,8 @@
    * icons live in the stylesheet and take their colour from the state, like the text.
    */
   function renderProgress() {
-    var children = STEPS.map(function (step, i) {
-      var item = el('div', { class: NS + '-progress__item', 'data-step': step.key }, [
+    const children = STEPS.map(function (step, i) {
+      const item = el('div', { class: NS + '-progress__item', 'data-step': step.key }, [
         el('span', { class: NS + '-progress__item__icon', 'aria-hidden': 'true' }),
         el('div', { class: NS + '-progress__item__label', text: step.label }),
         el('div', { class: NS + '-progress__item__connector' })
@@ -574,7 +576,7 @@
 
       return item;
     });
-    var progress = el('div', { class: NS + '-progress' }, children);
+    const progress = el('div', { class: NS + '-progress' }, children);
     root.modalProgressWrapper.replaceChildren(progress);
     return progress;
   }
@@ -585,14 +587,14 @@
    * checked from state.answers, which is what keeps earlier picks when going back.
    */
   function renderQuestion() {
-    var step = STEPS[state.step];
-    var question = el('div', { class: NS + '-question' }, [
+    const step = STEPS[state.step];
+    const question = el('div', { class: NS + '-question' }, [
       el('h3', { class: NS + '-question__title', text: step.title }),
       el(
         'div',
         { class: NS + '-question__options' },
         optionsFor(step.key).map(function (option) {
-          var inputAttr = {
+          const inputAttr = {
             type: step.multi ? 'checkbox' : 'radio',
             name: step.key,
             value: option.value
@@ -620,7 +622,7 @@
      * (The two branches matter: single answers start as null, which has no .concat.)
      */
     on(question, 'change', function (e) {
-      var selectedValue = e.target.value;
+      const selectedValue = e.target.value;
       if (step.multi) {
         state.answers[step.key] = e.target.checked
           ? state.answers[step.key].concat(selectedValue)
@@ -648,9 +650,9 @@
    * "Talk to someone" + "Just exploring" therefore shows the articles under the email.
    */
   function renderResults() {
-    var r = computeResults(state.answers, data);
+    const r = computeResults(state.answers, data);
 
-    var results = el('div', { class: NS + '-results' }, [
+    const results = el('div', { class: NS + '-results' }, [
       el('h3', { class: NS + '-results__title', text: r.heading }),
 
       r.emailTop
@@ -687,7 +689,7 @@
      * "0" + 1 === "01", and STEPS["01"] is undefined.
      */
     on(results, 'click', function (e) {
-      var change = e.target.closest('[data-step]');
+      const change = e.target.closest('[data-step]');
       if (change) goTo(Number(change.dataset.step));
     });
 
@@ -766,7 +768,7 @@
    * DevTools. Going back always passes (fewer steps to check).
    */
   function goTo(step) {
-    for (var i = 0; i < step; i++) if (!isStepAnswered(i)) return;
+    for (let i = 0; i < step; i++) if (!isStepAnswered(i)) return;
     state.step = step;
     render();
   }
@@ -798,7 +800,7 @@
 
   // Reads everything from the page once. Industries first: case studies map onto them.
   function scrape() {
-    var industries = getIndustries();
+    const industries = getIndustries();
     return {
       services: getServices(),
       industries: industries,
@@ -810,8 +812,8 @@
 
   // Everything the questionnaire needs, or null while any part is still missing.
   function pageReady() {
-    var hero = FIND.hero();
-    var ready =
+    const hero = FIND.hero();
+    const ready =
       hero &&
       FIND.solutionsLinks() &&
       FIND.sectorLinks() &&

@@ -19,8 +19,8 @@
 (function () {
   'use strict';
 
-  var NS = 'gd';
-  var INSTANCE_KEY = '__gainDrawer';
+  const NS = 'gd';
+  const INSTANCE_KEY = '__gainDrawer';
 
   // Re-run safety: tear down the previous instance (elements, listeners) first.
   if (window[INSTANCE_KEY] && typeof window[INSTANCE_KEY].destroy === 'function') {
@@ -32,22 +32,22 @@
    * finder anchors on a visible label ("Work", "Solutions") or a component class
    * (`content-card`, `site-navigation__*`). Returns the element(s) or null.
    */
-  var FIND = {
+  const FIND = {
     // Cards in the first content slider after the "Work" heading.
     workCards: function () {
-      var heading = findByText('main h2', 'Work');
+      const heading = findByText('main h2', 'Work');
       if (!heading) return null;
-      var slider = Array.prototype.find.call(document.querySelectorAll('.content-slider'), function (s) {
+      const slider = Array.prototype.find.call(document.querySelectorAll('.content-slider'), function (s) {
         return heading.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING;
       });
-      var cards = slider && slider.querySelectorAll('.content-card');
+      const cards = slider && slider.querySelectorAll('.content-card');
       return cards && cards.length ? cards : null;
     },
     // "Solutions" item in the top nav -> its submenu links (title + description).
     solutionsLinks: function () {
-      var link = findByText('.site-navigation__link', 'Solutions');
-      var item = link && link.closest('.site-navigation__item');
-      var links = item && item.querySelectorAll('.site-navigation__submenu-link');
+      const link = findByText('.site-navigation__link', 'Solutions');
+      const item = link && link.closest('.site-navigation__item');
+      const links = item && item.querySelectorAll('.site-navigation__submenu-link');
       return links && links.length ? links : null;
     }
   };
@@ -57,8 +57,8 @@
    * removes them all with controller.abort() — including the window scroll/resize ones,
    * which would otherwise outlive our elements. `opts` allows e.g. { passive: true }.
    */
-  var controller = new AbortController();
-  var on = function (el, type, fn, opts) {
+  const controller = new AbortController();
+  const on = function (el, type, fn, opts) {
     el.addEventListener(type, fn, Object.assign({ signal: controller.signal }, opts));
   };
 
@@ -70,22 +70,24 @@
    * most once per animation frame. Cleans up on timeout and if destroyed mid-wait.
    */
   function waitFor(finder, timeout) {
-    var check =
+    const check =
       typeof finder === 'function'
         ? finder
         : function () {
             return document.querySelector(finder);
           };
     return new Promise(function (resolve, reject) {
-      var found = check();
+      const found = check();
       if (found) return resolve(found);
-      var queued = false;
-      var obs = new MutationObserver(function () {
+      let queued = false;
+      // obs and timer use each other, but only inside callbacks that run later (after both
+      // lines below have run), so const is safe even though timer is declared second.
+      const obs = new MutationObserver(function () {
         if (queued) return;
         queued = true;
         requestAnimationFrame(function () {
           queued = false;
-          var result = check();
+          const result = check();
           if (result) {
             obs.disconnect();
             clearTimeout(timer);
@@ -94,7 +96,7 @@
         });
       });
       obs.observe(document.documentElement, { childList: true, subtree: true });
-      var timer = setTimeout(function () {
+      const timer = setTimeout(function () {
         obs.disconnect();
         reject(new Error('waitFor timeout'));
       }, timeout || 15000);
@@ -121,7 +123,7 @@
 
   // Trimmed text of the first `selector` match inside `root`, or '' if missing.
   function textOf(root, selector) {
-    var n = root.querySelector(selector);
+    const n = root.querySelector(selector);
     return n ? n.textContent.replace(/\s+/g, ' ').trim() : '';
   }
 
@@ -129,10 +131,10 @@
   // `data-u` attribute holds the encoded real URL.
   function imageUrl(img) {
     if (!img) return '';
-    var src = img.currentSrc || img.src || '';
+    const src = img.currentSrc || img.src || '';
     if (src.indexOf('data:image/svg+xml;base64,') !== 0) return src;
     try {
-      var m = atob(src.split(',')[1]).match(/data-u="([^"]+)"/);
+      const m = atob(src.split(',')[1]).match(/data-u="([^"]+)"/);
       return m ? decodeURIComponent(m[1]) : '';
     } catch (e) {
       return '';
@@ -149,7 +151,7 @@
    * - data-* values come back from `dataset` as strings — Number() them before maths.
    */
   function el(tag, attrs, children) {
-    var node = document.createElement(tag);
+    const node = document.createElement(tag);
     Object.keys(attrs || {}).forEach(function (k) {
       if (k === 'text') node.textContent = attrs[k];
       else if (k === 'class') node.className = attrs[k];
@@ -171,14 +173,14 @@
    * @returns {{title: string, url: string, image: string, service: string, industry: string}[]}
    */
   function getCaseStudies() {
-    var seen = {};
+    const seen = {};
     return Array.prototype.reduce.call(
       FIND.workCards() || [],
       function (list, card) {
-        var link = card.querySelector('.content-card__link');
+        const link = card.querySelector('.content-card__link');
         if (!link || seen[link.href]) return list;
         seen[link.href] = true;
-        var tags = Array.prototype.map.call(card.querySelectorAll('.content-tags li'), function (li) {
+        const tags = Array.prototype.map.call(card.querySelectorAll('.content-tags li'), function (li) {
           return li.textContent.trim();
         });
         list.push({
@@ -200,7 +202,7 @@
    * @returns {Object<string, string>}
    */
   function getServiceDescriptions() {
-    var map = {};
+    const map = {};
     Array.prototype.forEach.call(FIND.solutionsLinks() || [], function (a) {
       map[norm(textOf(a, '.site-navigation__submenu-link-title'))] = textOf(
         a,
@@ -212,11 +214,11 @@
 
   /* ---------------------------------------------------------------- build */
 
-  var data = null; // { caseStudies, descriptions }, filled once the page is ready
-  var isOpen = false;
+  let data = null; // { caseStudies, descriptions }, filled once the page is ready
+  let isOpen = false;
 
   // References to our long-lived elements, so behaviour code never has to search for them.
-  var root = {
+  const root = {
     overlay: null,
     drawer: null,
     toggle: null,
@@ -237,8 +239,8 @@
    * Missing image or description → that part is skipped (el() ignores null children).
    */
   function buildSlide(cs, descriptions) {
-    var description = descriptions[norm(cs.service)] || '';
-    var tooltip = [cs.service, cs.industry].filter(Boolean).join(' · ');
+    const description = descriptions[norm(cs.service)] || '';
+    const tooltip = [cs.service, cs.industry].filter(Boolean).join(' · ');
 
     return el('article', { class: NS + '-slide' }, [
       cs.image
@@ -293,9 +295,9 @@
    * open: "close when scrolling hits the bottom" needs the page to scroll.
    */
   function build() {
-    var overlay = el('div', { class: NS + '-overlay', 'data-gain': NS, 'aria-hidden': 'true' });
+    const overlay = el('div', { class: NS + '-overlay', 'data-gain': NS, 'aria-hidden': 'true' });
 
-    var toggle = el(
+    const toggle = el(
       'button',
       { class: NS + '-tab__toggle', type: 'button', 'aria-expanded': 'false', 'aria-controls': NS + '-panel' },
       [
@@ -304,21 +306,21 @@
       ]
     );
 
-    var prev = el('button', { class: NS + '-tab__arrow', type: 'button', 'aria-label': 'Previous page', text: '‹' }); // ‹
-    var next = el('button', { class: NS + '-tab__arrow', type: 'button', 'aria-label': 'Next page', text: '›' }); // ›
+    const prev = el('button', { class: NS + '-tab__arrow', type: 'button', 'aria-label': 'Previous page', text: '‹' }); // ‹
+    const next = el('button', { class: NS + '-tab__arrow', type: 'button', 'aria-label': 'Next page', text: '›' }); // ›
     // aria-live: screen readers announce "2/3" when the page changes
-    var counter = el('span', { class: NS + '-tab__counter', 'aria-live': 'polite' });
+    const counter = el('span', { class: NS + '-tab__counter', 'aria-live': 'polite' });
 
-    var track = el(
+    const track = el(
       'div',
       { class: NS + '-track', 'data-lenis-prevent-horizontal': '' },
       data.caseStudies.map(function (cs) {
         return buildSlide(cs, data.descriptions);
       })
     );
-    var panel = el('div', { class: NS + '-panel', id: NS + '-panel' }, [track]);
+    const panel = el('div', { class: NS + '-panel', id: NS + '-panel' }, [track]);
 
-    var drawer = el('aside', { class: NS + '-drawer', 'data-gain': NS, 'aria-label': 'Our work' }, [
+    const drawer = el('aside', { class: NS + '-drawer', 'data-gain': NS, 'aria-label': 'Our work' }, [
       el('div', { class: NS + '-tab' }, [toggle, el('div', { class: NS + '-tab__nav' }, [prev, counter, next])]),
       panel
     ]);
@@ -388,7 +390,7 @@
    * not early. Lenis scrolls with window.scrollTo, which still fires `scroll`.
    */
   function closeAtPageBottom() {
-    var atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+    const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
     if (atBottom && isOpen) setOpen(false);
   }
 

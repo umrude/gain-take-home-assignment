@@ -14,15 +14,15 @@
 (function () {
   'use strict';
 
-  var NS = 'gp';
-  var INSTANCE_KEY = '__gainPokemon';
-  var PER_PAGE = 12;
-  var API = 'https://pokeapi.co/api/v2/pokemon/';
-  var TYPES = [
+  const NS = 'gp';
+  const INSTANCE_KEY = '__gainPokemon';
+  const PER_PAGE = 12;
+  const API = 'https://pokeapi.co/api/v2/pokemon/';
+  const TYPES = [
     'normal', 'fire', 'water', 'electric', 'grass', 'ice', 'fighting', 'poison', 'ground',
     'flying', 'psychic', 'bug', 'rock', 'ghost', 'dragon', 'dark', 'steel', 'fairy'
   ];
-  var STORAGE_KEY = NS + '-type';
+  const STORAGE_KEY = NS + '-type';
 
   if (window[INSTANCE_KEY] && typeof window[INSTANCE_KEY].destroy === 'function') {
     window[INSTANCE_KEY].destroy();
@@ -33,8 +33,8 @@
    * so they're more stable than layout classes. The filters are rendered by React into
    * `.listing-filters`, so the dropdowns are found by their visible label text.
    */
-  var CARD = '[data-behaviour="listing"] .listing-box'; // also used in pokemon.css
-  var FIND = {
+  const CARD = '[data-behaviour="listing"] .listing-box'; // also used in pokemon.css
+  const FIND = {
     // Wraps filters + list; React may swap the <ul> inside, so observe this instead.
     root: function () { return document.getElementById('archive-listing'); },
     list: function () { return document.querySelector('[data-behaviour="listing"]'); },
@@ -46,11 +46,11 @@
     // TODO: pagination — rendered by React; check its markup and the page URL format.
   };
 
-  var controller = new AbortController();
-  var on = function (el, type, fn, opts) {
+  const controller = new AbortController();
+  const on = function (el, type, fn, opts) {
     el.addEventListener(type, fn, Object.assign({ signal: controller.signal }, opts));
   };
-  var observers = [];
+  const observers = [];
 
   /* ---------------------------------------------------------------- helpers */
 
@@ -59,22 +59,24 @@
    * Works at document-start: observes <html> and re-checks at most once per frame.
    */
   function waitFor(finder, timeout) {
-    var check = typeof finder === 'function' ? finder : function () { return document.querySelector(finder); };
+    const check = typeof finder === 'function' ? finder : function () { return document.querySelector(finder); };
     return new Promise(function (resolve, reject) {
-      var found = check();
+      const found = check();
       if (found) return resolve(found);
-      var queued = false;
-      var obs = new MutationObserver(function () {
+      let queued = false;
+      // obs and timer use each other, but only inside callbacks that run later (after both
+      // lines below have run), so const is safe even though timer is declared second.
+      const obs = new MutationObserver(function () {
         if (queued) return;
         queued = true;
         requestAnimationFrame(function () {
           queued = false;
-          var result = check();
+          const result = check();
           if (result) { obs.disconnect(); clearTimeout(timer); resolve(result); }
         });
       });
       obs.observe(document.documentElement, { childList: true, subtree: true });
-      var timer = setTimeout(function () { obs.disconnect(); reject(new Error('waitFor timeout')); }, timeout || 15000);
+      const timer = setTimeout(function () { obs.disconnect(); reject(new Error('waitFor timeout')); }, timeout || 15000);
       controller.signal.addEventListener('abort', function () { obs.disconnect(); clearTimeout(timer); });
     });
   }
@@ -83,9 +85,9 @@
 
   // Smallest element inside the filters whose text starts with `label`, then up to its wrapper.
   function filterByLabel(label) {
-    var filters = FIND.filters();
+    const filters = FIND.filters();
     if (!filters) return null;
-    var match = Array.prototype.filter.call(filters.querySelectorAll('*'), function (n) {
+    const match = Array.prototype.filter.call(filters.querySelectorAll('*'), function (n) {
       return norm(n.textContent).indexOf(norm(label)) === 0;
     }).pop(); // deepest match = the label itself
     // TODO: adjust once the dropdown markup is known (e.g. closest('.listing-filters__filter')).
@@ -94,7 +96,7 @@
 
   /* ---------------------------------------------------------------- PokeAPI (cached) */
 
-  var cache = window.__gainPokemonCache || (window.__gainPokemonCache = {}); // survives re-runs
+  const cache = window.__gainPokemonCache || (window.__gainPokemonCache = {}); // survives re-runs
 
   /** @returns {Promise<object>} raw PokeAPI pokemon */
   function getPokemon(id) {
@@ -110,7 +112,7 @@
 
   function currentPage() {
     // TODO: confirm the URL format used by the blog pagination (e.g. /blog/page/2/ or ?page=2)
-    var m = location.pathname.match(/\/page\/(\d+)/) || location.search.match(/[?&]page=(\d+)/);
+    const m = location.pathname.match(/\/page\/(\d+)/) || location.search.match(/[?&]page=(\d+)/);
     return m ? parseInt(m[1], 10) : 1;
   }
 
@@ -125,7 +127,7 @@
   /* ---------------------------------------------------------------- cards */
 
   function renderCard(card, index) {
-    var id = (currentPage() - 1) * PER_PAGE + index + 1;
+    const id = (currentPage() - 1) * PER_PAGE + index + 1;
     if (card.getAttribute('data-' + NS + '-id') === String(id)) return; // already done
     card.setAttribute('data-' + NS + '-id', String(id));
     card.removeAttribute('data-' + NS + '-ready');
@@ -160,7 +162,7 @@
   /* ---------------------------------------------------------------- interactions */
 
   function onListClick(e) {
-    var card = e.target.closest('.' + NS + '-card');
+    const card = e.target.closest('.' + NS + '-card');
     if (!card) return;
     // Block navigation to the article and flip instead.
     e.preventDefault();
@@ -177,8 +179,8 @@
   }
 
   function observe(list) {
-    var scheduled = false;
-    var mo = new MutationObserver(function () {
+    let scheduled = false;
+    const mo = new MutationObserver(function () {
       if (scheduled) return;
       scheduled = true;
       // Microtask: runs before the next paint, so original content isn't shown.
