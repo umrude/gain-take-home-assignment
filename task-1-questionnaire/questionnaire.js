@@ -455,7 +455,14 @@
   /* ---------------------------------------------------------------- rendering */
 
   // References to our long-lived elements, so render() doesn't have to search for them.
-  var root = { section: null, modal: null, modalContent: null, backBtn: null, nextBtn: null };
+  var root = {
+    section: null,
+    modal: null,
+    modalContent: null,
+    modalProgressWrapper: null,
+    backBtn: null,
+    nextBtn: null
+  };
 
   /*
    * The new section under the hero. `data-gain="gq"` marks every root element we add,
@@ -491,6 +498,7 @@
     var backBtn = el('button', { class: NS + '-modal__footer__button', type: 'button', text: 'Back' });
     var nextBtn = el('button', { class: NS + '-modal__footer__button', type: 'button', text: 'Next' });
     var modalContent = el('div', { class: NS + '-modal__content' });
+    var modalProgressWrapper = el('div', { class: NS + '-modal__progress-wrapper' });
 
     /*
      * `data-lenis-prevent`: the site smooth-scrolls with Lenis, which turns wheel events
@@ -510,7 +518,7 @@
       },
       [
         el('div', { class: NS + '-modal__content-wrapper', role: 'dialog', 'aria-modal': 'true' }, [
-          el('div', { class: NS + '-modal__progress-wrapper' }),
+          modalProgressWrapper,
           closeBtn,
           modalContent,
           el('div', { class: NS + '-modal__footer' }, [backBtn, nextBtn])
@@ -530,9 +538,12 @@
     on(modal, 'click', function (e) {
       if (e.target === modal) closeModal();
     });
+
+    root.modalProgressWrapper = modalProgressWrapper;
+    root.modalContent = modalContent;
+
     root.backBtn = backBtn;
     root.nextBtn = nextBtn;
-    root.modalContent = modalContent;
     document.body.appendChild(modal);
     return modal;
   }
@@ -562,9 +573,7 @@
       return item;
     });
     var progress = el('div', { class: NS + '-progress' }, children);
-    if (root.modal.querySelector('.' + NS + '-modal__progress-wrapper')) {
-      root.modal.querySelector('.' + NS + '-modal__progress-wrapper').replaceChildren(progress);
-    }
+    root.modalProgressWrapper.replaceChildren(progress);
     return progress;
   }
 
@@ -764,16 +773,23 @@
    * `gq-lock` (overflow: hidden on <html>) stops native scrolling of the page behind the
    * modal; `data-lenis-prevent` on the overlay stops Lenis's JS scrolling (see buildModal).
    * Both are needed on this site.
+   *
+   * Focus: opening moves focus into the dialog (the close button), so keyboard users
+   * don't keep tabbing through the page behind it; closing returns focus to Start.
+   * Browsers only show the focus ring if the user was using the keyboard, so mouse
+   * users don't see a ring appear on Start after closing.
    */
   function openModal() {
     root.modal.hidden = false;
     document.documentElement.classList.add(NS + '-lock');
+    root.modal.querySelector('.' + NS + '-modal__close').focus();
     render();
   }
 
   function closeModal() {
     root.modal.hidden = true;
     document.documentElement.classList.remove(NS + '-lock');
+    root.section.querySelector('.' + NS + '-btn').focus();
   }
 
   /* ---------------------------------------------------------------- lifecycle */
