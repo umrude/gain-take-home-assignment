@@ -1,12 +1,41 @@
 /* Task 2 — Footer Drawer. Inject into <head>. Prefix: .gd- */
 
 :root {
-  --gd-accent: #d9a84e;     /* tab colour from Figure 3 — TODO adjust */
-  --gd-panel-bg: #fff;
-  --gd-tooltip-bg: #c2185b; /* Figure 5 */
+  /*
+   * GAIN brand tokens — the same values as Task 1 (from the site's --wp--preset tokens).
+   * Figures 3–5 are layout examples (mustard tab, magenta tooltip), not a colour spec,
+   * so the drawer uses GAIN's palette and fonts to match the site and Task 1.
+   * Duplicated rather than shared because each task's CSS must work on its own.
+   */
+  --gd-ink: #001400; /* "not-black" */
+  --gd-growth: #00ff7f; /* "growth green" */
+  --gd-growth-soft: #e6fff2;
+  --gd-surface: #fff;
+  --gd-card: #f2f5f2; /* same light grey-green as Task 1's section card */
+  --gd-line: rgba(0, 20, 0, 0.14);
+  --gd-muted: rgba(0, 20, 0, 0.64);
+  --gd-font: 'Inter Tight', 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+  --gd-font-mono: 'Anonymous Pro', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --gd-radius: 16px;
+
+  /* Roles: what each part of the drawer uses */
+  --gd-tab-bg: var(--gd-growth); /* closed tab: growth-green pill, like the site's "LET'S TALK" */
+  --gd-tab-fg: var(--gd-ink);
+  --gd-panel-bg: var(--gd-surface); /* open: white tab + panel, as in Figure 4 */
+  --gd-tooltip-bg: var(--gd-ink); /* Figure 5's bubble + arrow shape, in GAIN colours */
+  --gd-tooltip-fg: var(--gd-surface);
   --gd-gap: 16px;
-  --gd-per-page: 1;         /* slides visible per page; bumped at breakpoints */
-  --gd-ease: cubic-bezier(.2, .8, .2, 1);
+  --gd-per-page: 1; /* slides visible per page; bumped at breakpoints, read by JS */
+  --gd-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /*
+   * Stacking order (learned in Task 1):
+   *   Task 1 modal  2147483647  covers everything while open (user-opened, dismissable)
+   *   Cookiebot     ~2147483631 cookie-settings button, bottom left — check in DevTools
+   *   this drawer   10000       must stay BELOW Cookiebot: it's always on screen, and
+   *                             consent withdrawal has to stay reachable
+   */
+  --gd-z: 10000;
 }
 
 /* ---------------------------------------------------------------- overlay */
@@ -14,57 +43,115 @@
 .gd-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9998;
-  background: rgba(0, 0, 0, .45);
+  z-index: calc(var(--gd-z) - 1);
+  background: rgba(0, 0, 0, 0.45);
   opacity: 0;
   pointer-events: none;
-  transition: opacity .3s;
+  transition: opacity 0.3s;
 }
-html.gd-open .gd-overlay { opacity: 1; pointer-events: auto; }
+html.gd-open .gd-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
 
 /* ---------------------------------------------------------------- drawer */
-
+/*
+ * The drawer's own height is just the panel. The tab sits on top of it with
+ * position: absolute; bottom: 100%, so it isn't part of that height. Then
+ * translateY(100%) moves exactly the panel's height off-screen and the tab stays
+ * visible at the bottom edge (Figure 3) — no JS measuring needed.
+ */
 .gd-drawer {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transform: translateY(var(--gd-panel-h, 100%)); /* TODO: hide panel, keep tab visible */
-  transition: transform .4s var(--gd-ease);
+  z-index: var(--gd-z);
+  transform: translateY(100%);
+  transition: transform 0.4s var(--gd-ease);
 }
-html.gd-open .gd-drawer { transform: translateY(0); }
+html.gd-open .gd-drawer {
+  transform: translateY(0);
+}
 
-/* TODO: .gd-tab (flex), .gd-tab__nav hidden when closed */
+/* TODO (PLAN 2.3/2.7): .gd-tab { position: absolute; bottom: 100%; left: 50%;
+   transform: translateX(-50%); display: flex; ... }, .gd-tab__nav hidden when closed.
+   At 375px, check the tab doesn't overlap Cookiebot's button (bottom left). */
 
-.gd-chevron { display: inline-block; transition: transform .3s var(--gd-ease); }
-html.gd-open .gd-chevron { transform: rotate(180deg); }
+.gd-chevron {
+  display: inline-block;
+  transition: transform 0.3s var(--gd-ease);
+}
+html.gd-open .gd-chevron {
+  transform: rotate(180deg);
+}
 
 /* ---------------------------------------------------------------- slider */
 
-.gd-panel { width: 100%; background: var(--gd-panel-bg); }
+.gd-panel {
+  width: 100%;
+  background: var(--gd-panel-bg);
+  color: var(--gd-ink);
+  font-family: var(--gd-font);
+}
+/* Mono uppercase for labels (tab, counter, tag, button), like the site's nav and Task 1.
+   TODO: add the class names here once they exist in build(). */
 .gd-track {
   display: grid;
   grid-auto-flow: column;
+  /* N slides + (N - 1) gaps fill the track exactly */
   grid-auto-columns: calc((100% - (var(--gd-per-page) - 1) * var(--gd-gap)) / var(--gd-per-page));
   gap: var(--gd-gap);
   overflow-x: auto;
+  overscroll-behavior-x: contain; /* a swipe at the end doesn't trigger browser back */
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   padding: 16px;
 }
-.gd-track::-webkit-scrollbar { display: none; }
-.gd-track.is-dragging { scroll-snap-type: none; cursor: grabbing; user-select: none; }
-.gd-slide { scroll-snap-align: start; display: flex; flex-direction: column; }
+.gd-track::-webkit-scrollbar {
+  display: none;
+}
+.gd-track.is-dragging {
+  scroll-snap-type: none;
+  cursor: grabbing;
+  user-select: none;
+}
+.gd-slide {
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+}
 
 /* ---------------------------------------------------------------- tooltip (Figure 5) */
-/* TODO: .gd-tag[data-tooltip]::after bubble + ::before arrow, fade/slide-in.
-   Small screens / tight space: flip below or clamp to slide edge; show on tap/focus too. */
+/* TODO (PLAN 2.6): .gd-tag[data-tooltip]::after bubble + ::before arrow, fade/slide-in.
+   Show on :hover AND :focus-visible (the tag is a <button>, so tap/keyboard work too).
+   Tight space (first/last slide, 375px): clamp to the slide edge or flip below. */
+
+/* ---------------------------------------------------------------- hover (pointer devices only) */
+/* Learned in Task 1: on touch screens :hover sticks to the last tapped element, so put
+   hover-only effects (tab, arrows, slide lift) inside this block. */
+@media (hover: hover) {
+  /* TODO */
+}
 
 /* ---------------------------------------------------------------- breakpoints */
+/* Brief: at least 4 slides on desktop, 2 on tablet, 1 on mobile. */
 
-@media (min-width: 768px)  { :root { --gd-per-page: 2; } }
-@media (min-width: 1200px) { :root { --gd-per-page: 4; } }
+@media (min-width: 768px) {
+  :root {
+    --gd-per-page: 2;
+  }
+}
+@media (min-width: 1024px) {
+  :root {
+    --gd-per-page: 4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gd-overlay,
+  .gd-drawer,
+  .gd-chevron {
+    transition: none;
+  }
+}
