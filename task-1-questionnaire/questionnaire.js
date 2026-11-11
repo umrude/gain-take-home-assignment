@@ -226,7 +226,7 @@
   }
 
   /*
-   * Slider libraries clone slides for looping; keep the first card per URL.
+   * Keep the first card per URL. GAIN's slider doesn't repeat cards today, but looping sliders often add copies.
    * `return (seen[key] = true)` records the URL and returns true (keep) in one step.
    */
   function uniqueCards(cards) {
@@ -748,8 +748,8 @@
    * answer change, so it can never go stale.
    */
   function updateFooter() {
-    root.backBtn.classList.toggle('hidden', state.step === 0);
-    root.nextBtn.classList.toggle('hidden', state.step === STEPS.length - 1);
+    root.backBtn.classList.toggle(NS + '-modal__footer__button--hidden', state.step === 0);
+    root.nextBtn.classList.toggle(NS + '-modal__footer__button--hidden', state.step === STEPS.length - 1);
     root.nextBtn.disabled = !isStepAnswered(state.step);
   }
 

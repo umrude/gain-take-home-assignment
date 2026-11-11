@@ -66,7 +66,7 @@ They end with the lessons about running test code on someone else's page.
 3. `buildSection()` and `buildModal()` create the new section and the modal, once.
 4. `render()` redraws the progress bar, the current step and the footer from `state`.
 
-- **Single source of truth:** `state` (the current step plus the answers) holds everything. Every click updates `state`, then calls `render()`, so going back and changing an answer needs no extra code.
+- **Single source of truth:** `state` (the current step plus the answers) holds everything. Every answer and step change updates `state` first, and the screen is redrawn from it: `render()` when the step changes, `updateFooter()` when an answer only changes whether Next is enabled. So going back and changing an answer needs no extra code.
 - **Moving between steps:** Back, Next and "Change" all go through `goTo()`. It refuses to move past an unanswered step, so the rule holds even if the disabled Next button is re-enabled in DevTools.
 - **Results:** `computeResults()` is a pure function of the answers and the scraped data, so it can be tested from the console without touching the DOM:
   `__gainQuestionnaire.computeResults({ services: ['Experience'], industries: ['Retail'], useful: 'cases', timing: 'now' }, __gainQuestionnaire.data)`
@@ -75,7 +75,7 @@ They end with the lessons about running test code on someone else's page.
 **Design decisions**
 
 - **The pixel button (Figure 1)** is drawn with a single `box-shadow` list:
-  - four outer shadows, each offset by one pixel, draw the dark outline with stepped corners
+  - four outer shadows, each offset by one art "pixel" (`--gq-px`, 3px) up, down, left or right, draw the dark outline. The corners are left uncovered, which makes the stepped corners
   - two inset shadows draw the top strip and the bottom shadow
 
   Each state only swaps five custom properties (`--bg`, `--strip`, `--shade`, `--edge`, `--fg`).
@@ -90,7 +90,7 @@ They end with the lessons about running test code on someone else's page.
 
 - The footer email is hidden by Cloudflare's email protection. The script decodes `data-cfemail` itself, so the email can be read before Cloudflare's script runs.
 - Images are lazy-loaded through ShortPixel. Until an image loads, its real URL is inside the placeholder SVG's `data-u` attribute. (Task 2 reads them the same way.)
-- Work card industry tags don't always match the "Our Sectors" names ("Tech & Telcoms" vs "Tech & Telco"). Tags are mapped to the closest sector name, so a case study matches the industry the user picked.
+- Work card industry tags don't always match the "Our Sectors" names ("Tech & Telcoms" vs "Tech & Telco"). Each tag is mapped to the sector whose name it equals or starts with, so a case study matches the industry the user picked.
 - The Insights cards have no dates. Slider order (newest first) is used as "latest".
 - The site smooth-scrolls with Lenis, which scrolls the page from JavaScript, so `overflow: hidden` alone doesn't lock the page behind the modal. The page's Lenis instance isn't exposed (`window.lenis` only holds the version), so the modal uses Lenis's own opt-out attribute, `data-lenis-prevent`. Lenis then ignores wheel and touch events from inside it.
 
@@ -99,7 +99,7 @@ They end with the lessons about running test code on someone else's page.
 **How it's built**
 
 1. `waitFor()` waits until the "Work" slider and the "Solutions" menu exist.
-2. `getCaseStudies()` reads the case studies from the "Work" slider, in slider order, skipping the copies the slider makes for looping. `getServiceDescriptions()` reads each service's description from the "Solutions" menu.
+2. `getCaseStudies()` reads the case studies from the "Work" slider, in slider order, one per case study URL. GAIN's slider doesn't repeat cards today, but looping sliders often add copies, so a repeated card would still only get one slide. `getServiceDescriptions()` reads each service's description from the "Solutions" menu.
 3. `build()` creates the overlay and the drawer (the tab, the page counter and arrows, and a track with one slide per case study), once.
 4. `setOpen()` is the one place the open state changes: the tab, the overlay, Esc and reaching the page bottom all call it. It toggles one class on `<html>`, and the CSS does the rest: the panel slides up, the chevron turns 180° and the overlay fades in.
 
@@ -118,7 +118,7 @@ They end with the lessons about running test code on someone else's page.
   - Its width is capped to the slide with container query units (`100cqi`), so long text wraps inside the slide rather than overflowing. No JS measuring.
   - It opens upward over the image, which has a fixed 16:9 shape, so there's always room. A slide without an image flips it below the tag (`:has()`).
   - Touch has no hover, and Safari doesn't focus a button when it's tapped, so tapping the tag toggles the tooltip. Tapping elsewhere, Esc, scrolling the slider or closing the drawer hides it. Mouse hover and keyboard focus are CSS-only.
-- **The drawer leaves Cookiebot's button reachable.** Consent withdrawal must stay easy to reach (UK/EU GDPR Art. 7(3)), and unlike the modal, the drawer stays on screen all the time. So it sits below Cookiebot's widget. On phones, where the button sits at the bottom left, the drawer leaves empty space under the cards for it, so it doesn't cover "View case study". On tablet and desktop the site floats it higher (about 130px up), where it covers the first few letters of the first card's description. That's accepted on purpose: it floats over the site's own content the same way, and GAIN's consent widget isn't ours to move or restyle. The site also has a "Cookies" link in the footer. On a real client site, I'd check this with whoever owns the consent setup.
+- **The drawer leaves Cookiebot's button reachable.** Consent withdrawal must stay easy to reach (UK/EU GDPR Art. 7(3)), and unlike the modal, the drawer stays on screen all the time. So it sits below Cookiebot's widget. On phones, where the button sits at the bottom left, the drawer leaves empty space under the cards for it, so it doesn't cover "View case study". On tablet and desktop the site floats it higher (about 110px up), where it covers the first few letters of the first card's description. That's accepted on purpose: it floats over the site's own content the same way, and GAIN's consent widget isn't ours to move or restyle. The site also has a "Cookies" link in the footer. On a real client site, I'd check this with whoever owns the consent setup.
 - **The tab doesn't cover the site's "Let's Talk" button.** Below 768px, the site has a sticky "Let's Talk" button centred at the bottom of the screen. That's exactly where Figure 3 puts the tab, so a centred tab covered GAIN's main contact button on phones. On phones the closed tab therefore sits in the bottom-right corner instead: Cookiebot's button has the left corner and "Let's Talk" the centre. Its visible label is shortened to "Work" to fit; screen readers still hear "Our work". It's still attached to the bottom edge, and the drawer still slides up from the bottom, so only the tab moves. I didn't make it slide in from the side, because the brief asks for a sticky drawer at the bottom that slides from the bottom. From 768px the site moves "Let's Talk" into the header, so the tab is centred as in Figure 3. While the drawer is open its panel covers "Let's Talk" under the overlay. That's fine: the user opened it, and closing it brings the button back.
 
 **The live site**
@@ -135,7 +135,7 @@ They end with the lessons about running test code on someone else's page.
 2. `waitFor()` waits for the listing. `setupFilters()` adds "Filter by type".
 3. `processList()` calls `renderCard()` for each card. It works out the Pokémon's number from the card's position and the page number in the URL (`(page - 1) × 12 + position`), fetches it from PokeAPI, and appends our card inside React's `<li>`.
 4. `observe()` watches the listing with a `MutationObserver`, and runs `processList()` again whenever React replaces the cards (paging, filtering, back and forward).
-5. Clicks and Enter/Space flip a card (`flipCard()`), through one listener on the listing, so the cards React adds later work too.
+5. Clicks and Enter/Space flip a card (`flipCard()`), through one click and one keydown listener on the listing, so the cards React adds later work too.
 
 **Design decisions**
 
@@ -144,7 +144,7 @@ They end with the lessons about running test code on someone else's page.
 - **The chosen type** is kept in `sessionStorage` and re-applied after every redraw, so it stays selected when changing pages.
 - **Following React's updates without history hooks.** Paging, filtering and the browser's back and forward buttons all end with React replacing the cards, and React updates the URL before it does. So one `MutationObserver` on the listing is enough: by the time it fires, the page number in the URL is already the new one. I checked this, including back and forward. Wrapping `history.pushState` would patch a global that the site and its analytics also use, to learn something the cards already tell us. Our own changes trigger the observer once more, but by then every card is done, so it settles (0 changes in the 2s after).
 - **Flipped cards are remembered** while you're on the page (a `Set` of Pokémon numbers), because React throws the old cards away when paging. Coming back to a page, they're rebuilt already flipped, with no animation and no cry.
-- **Bonus: the Pokémon's cry.** Flipping a card to its back plays that Pokémon's cry from PokeAPI (`cries.latest`), at 40% volume so it doesn't startle. It only plays when you flip a card yourself: not when turning it back to the front, and not when a remembered card comes back already flipped after paging. Some Pokémon have no cry, so those just flip silently. If the browser blocks the sound or the file fails to load, `play()` rejects; that's caught, so it never shows up as an "Uncaught (in promise)" error and the flip works the same.
+- **Bonus: the Pokémon's cry.** Flipping a card to its back plays that Pokémon's cry from PokeAPI (`cries.latest`), at 40% volume so it doesn't startle. It only plays when you flip a card yourself: not when turning it back to the front, and not when a remembered card comes back already flipped after paging. Every Pokémon the blog can reach has a cry (PokeAPI has one for every number from #1 to #1025), but the code still checks, so one without a cry would just flip silently. If the browser blocks the sound or the file fails to load, `play()` rejects; that's caught, so it never shows up as an "Uncaught (in promise)" error and the flip works the same.
 - **The 18 types are a fixed list** in the games' order. PokeAPI's `/type/` endpoint also returns `stellar`, `unknown` and `shadow`, which no Pokémon has as its type, so they'd need filtering out by a hardcoded rule anyway. A fixed list also shows the dropdown straight away, even if PokeAPI is slow.
 - **Each Pokémon is fetched once** and cached on `window`, so paging back and re-running the script don't request it again. If a request fails, the card shows a visible error instead of staying hidden, and it's retried the next time that page is shown.
 
@@ -157,8 +157,8 @@ They end with the lessons about running test code on someone else's page.
 
 Test code runs on someone else's live page, next to their framework and their analytics. A variant is only useful if it's measured the same way as the original, and if it doesn't break what's around it. Lessons from these three tasks:
 
-- **Don't swallow events.** The Pokémon cards don't call `stopPropagation`. I checked first: React has no click handlers on the cards, and the article link is hidden, so there's nothing to block. With `stopPropagation`, the site's own `document` click listeners (analytics, tag managers, "click outside" handlers) saw 0 card clicks; without it they see every one. If blocking a framework's handler were ever unavoidable, I'd scope it to our elements and push the experiment's own tracking event (e.g. to the `dataLayer`) instead of silently losing the click. I wouldn't send real events from a take-home.
-- **Prefix every class and state.** An unprefixed `is-open` on the drawer's tooltip picked up a rule from the site's CSS and turned the tooltip upside down. Everything is now `gq-`, `gd-` or `gp-`, including state modifiers.
+- **Don't swallow events.** The Pokémon cards don't call `stopPropagation`. I checked first: React has no click handlers on the cards, and the article link is hidden, so there's nothing to block. With `stopPropagation`, the site's own `document` click listeners (analytics, tag managers, "click outside" handlers) saw 0 card clicks; without it they see every one. The one place a script stops an event is the drawer, on its own slider: after a mouse drag, it cancels the click so the link under the mouse doesn't open. If blocking a framework's handler were ever unavoidable, I'd scope it to our elements in the same way and push the experiment's own tracking event (e.g. to the `dataLayer`) instead of silently losing the click. I wouldn't send real events from a take-home.
+- **Prefix every class and state.** An unprefixed `is-open` on the drawer's tooltip picked up a rule from the site's CSS and turned the tooltip upside down. Everything is now `gq-`, `gd-` or `gp-`, including state modifiers, and a test records every class our elements get while every feature is used.
 - **Never remove or edit the framework's own nodes.** Our Pokémon card is appended inside React's `<li>`, and React's children are only hidden with CSS. Removing them (`replaceChildren`) leaves React holding nodes that aren't in the page, and its next update can throw.
 - **Stop the flicker before the JS runs.** The CSS hides article content and React's dropdowns from the first paint, the same job A/B tools do with "anti-flicker" snippets.
 - **Re-runs and clean-up.** Tools re-run variants, so each script destroys its previous copy (elements, listeners, observers, timers) before building again. That includes work still in flight: if Task 3 is re-run while PokeAPI answers are on their way, the old run's answers are ignored when they arrive (its `AbortController` is already aborted). Before that fix, a quick double run left two "no Pokémon" messages, which a test now checks.
@@ -168,7 +168,7 @@ Test code runs on someone else's live page, next to their framework and their an
 
 ## How I tested
 
-All three tasks are covered by **114 automated browser tests** ([tests/](tests/)), written against the brief rather than against my code.
+All three tasks are covered by **115 automated browser tests** ([tests/](tests/)), written against the brief rather than against my code.
 
 ```bash
 npm install
@@ -179,6 +179,15 @@ npm test
 This is dev tooling only: the task files still have no dependencies and no build step.
 
 - **Offline copy of the live site.** The first run records the homepage and the blog once ([tests/record.js](tests/record.js)) at 375, 768 and 1440px, answering the cookie banner and paging through the blog. Every test then replays those recordings. Runs are fast and give the same result each time, and they don't touch GAIN's rate limits. The site's own CSS and JS still run (Lenis, Cookiebot, lazy rendering, the email decoder), so the tests see the real page. The recording is a copy of GAIN's site, so it's gitignored rather than committed. `npm run test:record` refreshes it.
+- **The notes' claims about GAIN's site were checked on the live site** (11 Nov, a read-only browser run, as well as on the recording):
+  - the homepage's raw HTML has the Cloudflare-protected email and the ShortPixel placeholders;
+  - jumping to the bottom grows the page by about 1,000px as WP Rocket renders the footer;
+  - `window.lenis` only holds the version, and Lenis's CSS gives opted-out elements `overscroll-behavior: contain`;
+  - Cookiebot's button and the "Let's Talk" button sit where the Task 2 notes say;
+  - only Anonymous Pro 700 is loaded, and the colour tokens match;
+  - on the blog, changing React's capability dropdown sends `POST admin-ajax.php?action=list_results` and replaces the cards;
+  - React updates the URL before the cards change, including on back, and doesn't redraw the filters when paging;
+  - the cards and their links have no React click handlers.
 - **Injected the way the brief says.** The CSS goes into `<head>` as a `<style>`. The JS runs as a plain script, the same as pasting it into the console. The document-start bonus test is harsher than Tampermonkey: it runs the scripts before `<html>` even exists.
 - **Independent expectations.** The tests read the homepage themselves (the Solutions menu, Our Sectors, the Work and Insights sliders, the footer email). Expected results come from the brief's rules, never from the scripts' own logic. Two tests **edit the homepage before the scripts run**: they rename a service, add a sector, retitle a case study and change the email. They then check that the questionnaire and the drawer follow the edits, which hardcoded values wouldn't.
 - **Visual details checked on real pixels.** For Figure 1, the tests sample the rendered button in each state. They check for the lighter top strip, the darker bottom shadow, the dark outline, the notched corners and the square blue focus ring, and that Pressed has no strip or shadow. Animations are checked mid-way, so the chevron must be part-turned and the drawer part-way up 120ms after a click. Screenshot baselines of the button states, the progress bar, the closed tab and the tooltip were approved by eye. Any later change fails the test. On another OS, with different font rendering, they're created on the first run.

@@ -166,8 +166,8 @@
   /* ---------------------------------------------------------------- scraping */
 
   /**
-   * Case studies from the "Work" slider, in slider order, one per URL (slider libraries
-   * clone slides for looping). Each card carries two tags: [service, industry].
+   * Case studies from the "Work" slider, in slider order, one per URL (GAIN's slider
+   * doesn't repeat cards today, but looping sliders often add copies). Each card carries two tags: [service, industry].
    * The industry is shown as the card has it (e.g. "Tech & Telcoms"); no need to map it
    * onto the sector list like Task 1, because nothing here compares industries.
    * @returns {{title: string, url: string, image: string, service: string, industry: string}[]}

@@ -76,7 +76,7 @@
     cards: function () {
       return document.querySelectorAll(CARD);
     },
-    // Holds React's two <select>s; our "Filter by type" <select> goes in here too (setupFilters)
+    // Holds React's <select>s; our "Filter by type" <select> goes in here too (setupFilters)
     dropdowns: function () {
       return document.querySelector('[data-behaviour="listing-filters"] .filter-dropdown');
     },
@@ -414,7 +414,7 @@
             })
             .join(' ') // "grass poison"
         };
-        if (cries && cries.latest) attrs['data-' + NS + '-cry'] = cries.latest; // some have no cry
+        if (cries && cries.latest) attrs['data-' + NS + '-cry'] = cries.latest; // all of #1–#1025 have one, but just in case
         const cardContent = el('div', attrs, [el('div', { class: NS + '-card__inner' }, [cardFront, cardBack])]);
 
         showCard(card, cardContent);

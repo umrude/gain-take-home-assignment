@@ -103,7 +103,7 @@ function readHomepage() {
       (s) => h2.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING
     );
   };
-  // One entry per URL: the slider clones cards to loop
+  // One entry per URL, like the scripts (a looping slider could repeat cards)
   const cards = (heading) => {
     const seen = new Set();
     return [...sliderAfter(heading).querySelectorAll('.content-card')]

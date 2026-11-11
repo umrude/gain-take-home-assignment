@@ -39,7 +39,7 @@ test('[PDF] The JS can be pasted into the console as is (a plain script, no modu
 
 test("[PDF] The CSS can be injected into <head> with the README's console snippet, pasted in as is", () => {
   const readme = require('fs').readFileSync(require('path').join(__dirname, '..', 'README.md'), 'utf8');
-  const snippet = (readme.match(/```js\n([^`]*insertAdjacentHTML[\s\S]*?)```/) || [])[1];
+  const snippet = (readme.match(/```js\r?\n([^`]*insertAdjacentHTML[\s\S]*?)```/) || [])[1];
   expect(snippet, 'the README has a CSS snippet').toBeTruthy();
   for (const task of [...TASK_NAMES, 'pokemon']) {
     const { css } = source(task);
@@ -49,8 +49,42 @@ test("[PDF] The CSS can be injected into <head> with the README's console snippe
     const document = { head: { insertAdjacentHTML: (_, html) => (added = html) } };
     const code = snippet.trim().replace('/* CSS here */', () => css);
     expect(() => vm.runInNewContext(code, { document }), task).not.toThrow();
-    expect(added, task).toBe('<style id="gain-css-task-N">' + css + '</style>');
+    // Template literals turn Windows line endings (CRLF) into LF, which makes no difference to CSS
+    expect(added, task).toBe('<style id="gain-css-task-N">' + css.replace(/\r\n/g, '\n') + '</style>');
   }
+});
+
+test('[Extra] Every class our elements ever get is prefixed (gq-, gd-), including state classes', async ({
+  page,
+  gain
+}) => {
+  await gain.open(TASK_NAMES);
+  // Record every class set on our elements while every feature is used, so state classes
+  // that come and go (open, hidden, dragging...) are caught too. An unprefixed one can pick
+  // up the site's CSS, as `is-open` once did on the drawer's tooltip.
+  await page.evaluate(() => {
+    window.__ourClasses = new Set();
+    const record = (node) => {
+      if (node.nodeType !== 1 || !node.closest('[data-gain]')) return;
+      node.classList.forEach((c) => window.__ourClasses.add(c));
+    };
+    document.querySelectorAll('[data-gain], [data-gain] *').forEach(record);
+    new MutationObserver((records) => {
+      for (const r of records) {
+        record(r.target);
+        r.addedNodes.forEach((n) => n.nodeType === 1 && [n, ...n.querySelectorAll('*')].forEach(record));
+      }
+    }).observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['class']
+    });
+  });
+  await useEverything(page);
+  const classes = await page.evaluate(() => [...window.__ourClasses]);
+  expect(classes.length).toBeGreaterThan(20);
+  expect(classes.filter((c) => !/^g[qd]-/.test(c))).toEqual([]);
 });
 
 test('[PDF] The CSS is a separate file, injected into <head>; the JS adds no styles or libraries', async ({
@@ -144,7 +178,7 @@ async function editHomepage(page) {
     const extra = sectorLink.closest('.wp-block-button').cloneNode(true);
     extra.querySelector('a').textContent = 'Space Travel';
     sectorLink.closest('.wp-block-button').after(extra);
-    // The first case study (and its loop clones) retitled, re-linked, re-tagged
+    // The first case study (and any copies of it) retitled, re-linked, re-tagged
     const firstUrl = document.querySelector('.content-card__link').href;
     document.querySelectorAll('.content-card').forEach((card) => {
       const link = card.querySelector('.content-card__link');

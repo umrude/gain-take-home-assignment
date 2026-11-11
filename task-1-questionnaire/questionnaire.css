@@ -92,7 +92,7 @@ html.gq-lock {
   justify-self: end;
 }
 
-.gq-modal__footer__button.hidden {
+.gq-modal__footer__button--hidden {
   display: none;
 }
 

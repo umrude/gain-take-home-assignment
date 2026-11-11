@@ -339,7 +339,7 @@ html.gd-open .gd-panel {
  *   overflow on the left;
  * - max-width is the slide's width (100cqi, from the container above) minus padding on
  *   both sides, so long text wraps instead of overflowing on the right;
- * - it opens upward over the image, which always has room (fixed 16:10 above);
+ * - it opens upward over the image, which always has room (fixed 16:9 above);
  *   a slide without an image flips it below the tag instead (:has rule at the end).
  *
  * Shown on: mouse hover (hover block), keyboard focus (:focus-visible), and .gd-tag--open,
@@ -468,7 +468,7 @@ html.gd-open .gd-panel {
  * Phones: Cookiebot's round button sits bottom-left ABOVE the drawer (on purpose, so
  * consent withdrawal stays reachable; see the z-index note at the top). Extra bottom
  * padding leaves it empty space to sit in, instead of covering "View case study".
- * (Tablet/desktop: the site floats the button ~130px up, over the first card's text, where
+ * (Tablet/desktop: the site floats the button ~110px up, over the first card's text, where
  * padding can't help. Accepted and documented in the README; we don't move their widget.)
  */
 @media (max-width: 767px) {
