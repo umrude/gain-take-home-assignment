@@ -66,7 +66,7 @@
 
   /**
    * Resolves with the first truthy result of `finder` (a function, or a CSS selector).
-   * Works at document-start: observes <html> (which always exists) and re-checks at
+   * Works at document-start: observes `document` (it exists even before <html>) and re-checks at
    * most once per animation frame. Cleans up on timeout and if destroyed mid-wait.
    */
   function waitFor(finder, timeout) {
@@ -95,7 +95,7 @@
           }
         });
       });
-      obs.observe(document.documentElement, { childList: true, subtree: true });
+      obs.observe(document, { childList: true, subtree: true });
       const timer = setTimeout(function () {
         obs.disconnect();
         reject(new Error('waitFor timeout'));
@@ -291,10 +291,8 @@
    *
    * Lenis (learned in Task 1): the site's smooth scroll takes over wheel/trackpad gestures.
    * `data-lenis-prevent-horizontal` on the track hands horizontal swipes back to the
-   * slider. `data-lenis-prevent-vertical` on the panel does the same for vertical wheel:
-   * on short screens the panel scrolls inside itself (CSS max-height), and Lenis would
-   * otherwise scroll the page instead. When the panel can't scroll, the browser passes
-   * the wheel on to the page natively, which still fires `scroll` for the bottom check.
+   * slider, while vertical wheel still smooth-scrolls the page. For the panel's vertical
+   * opt-out, see syncPanelScroll().
    * Page scroll is NOT locked while open: "close when scrolling hits the bottom" needs it.
    */
   function build() {
@@ -321,7 +319,7 @@
         return buildSlide(cs, data.descriptions);
       })
     );
-    const panel = el('div', { class: NS + '-panel', id: NS + '-panel', 'data-lenis-prevent-vertical': '' }, [track]);
+    const panel = el('div', { class: NS + '-panel', id: NS + '-panel' }, [track]);
 
     const drawer = el('aside', { class: NS + '-drawer', 'data-gain': NS, 'aria-label': 'Our work' }, [
       el('div', { class: NS + '-tab' }, [toggle, el('div', { class: NS + '-tab__nav' }, [prev, counter, next])]),
@@ -360,6 +358,21 @@
     if (!open && root.panel.contains(document.activeElement)) root.toggle.focus();
     root.panel.inert = !open;
     if (!open) setTip(null);
+    if (open) syncPanelScroll();
+  }
+
+  /*
+   * On short screens (landscape phones) the panel is capped by CSS (max-height) and
+   * scrolls inside itself. Only then does it opt out of Lenis vertically, so the wheel
+   * scrolls the panel rather than the page.
+   * It must NOT have the attribute otherwise: the site's Lenis CSS gives opted-out
+   * elements `overscroll-behavior: contain`, so a wheel over a panel with nothing to
+   * scroll would scroll nothing at all. Found by the test suite: with the mouse resting
+   * on the drawer after opening it, the page couldn't be scrolled to the bottom.
+   */
+  function syncPanelScroll() {
+    const scrolls = root.panel.scrollHeight > root.panel.clientHeight + 1;
+    root.panel.toggleAttribute('data-lenis-prevent-vertical', scrolls);
   }
 
   /* ---------------------------------------------------------------- tooltip (tap) */
@@ -664,7 +677,10 @@
         },
         { passive: true }
       );
-      on(window, 'resize', updateCounter); // a breakpoint change changes slides per page
+      on(window, 'resize', function () {
+        updateCounter(); // a breakpoint change changes slides per page
+        syncPanelScroll(); // and the panel may start or stop needing to scroll
+      });
       enableDrag(root.track);
       updateCounter();
 

@@ -228,6 +228,17 @@ html.gd-open .gd-panel {
      flush against the panel (scrollLeft 16) and the snap points drift from n × slideStep */
   scroll-padding-inline: var(--gd-track-pad);
 }
+/*
+ * The site's Lenis CSS gives every opted-out element `overscroll-behavior: contain` on BOTH
+ * axes, including our track (data-lenis-prevent-horizontal). Vertically, the track has
+ * nothing to scroll, so `contain` would swallow vertical wheel/swipes over the cards:
+ * the panel (short screens) or the page (phones, touch) wouldn't scroll. Undo it for y only.
+ * More specific than Lenis's `.lenis [data-lenis-prevent-horizontal]` (0,2,0) on purpose:
+ * at document-start our <style> comes BEFORE the site's, so a tie would go to Lenis.
+ */
+.gd-drawer .gd-panel .gd-track {
+  overscroll-behavior-y: auto;
+}
 .gd-track::-webkit-scrollbar {
   display: none;
 }

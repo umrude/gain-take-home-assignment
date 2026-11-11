@@ -93,8 +93,9 @@
   /**
    * Resolves with the first truthy result of `finder` (a function, or a CSS selector).
    *
-   * Why it works at document-start: <body> may not exist yet, but <html> always does,
-   * so we observe <html> for added nodes. The page fires thousands of mutations while
+   * Why it works at document-start: <body> may not exist yet, and with some tools not even
+   * <html>, but `document` always does, so we observe the document itself for added nodes
+   * (found by the test suite, which runs the script before <html> exists). The page fires thousands of mutations while
    * parsing, so instead of re-checking on each one we queue at most one check per
    * animation frame (`queued` flag + requestAnimationFrame).
    * It also cleans up after itself on timeout and if the instance is destroyed mid-wait.
@@ -125,7 +126,7 @@
           }
         });
       });
-      obs.observe(document.documentElement, { childList: true, subtree: true });
+      obs.observe(document, { childList: true, subtree: true });
       const timer = setTimeout(function () {
         obs.disconnect();
         reject(new Error('waitFor timeout'));

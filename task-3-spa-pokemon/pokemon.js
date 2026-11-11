@@ -56,7 +56,7 @@
 
   /**
    * Resolves with the first truthy result of `finder` (a function, or a CSS selector).
-   * Works at document-start: observes <html> and re-checks at most once per frame.
+   * Works at document-start: observes `document` (it exists even before <html>) and re-checks at most once per frame.
    */
   function waitFor(finder, timeout) {
     const check = typeof finder === 'function' ? finder : function () { return document.querySelector(finder); };
@@ -75,7 +75,7 @@
           if (result) { obs.disconnect(); clearTimeout(timer); resolve(result); }
         });
       });
-      obs.observe(document.documentElement, { childList: true, subtree: true });
+      obs.observe(document, { childList: true, subtree: true });
       const timer = setTimeout(function () { obs.disconnect(); reject(new Error('waitFor timeout')); }, timeout || 15000);
       controller.signal.addEventListener('abort', function () { obs.disconnect(); clearTimeout(timer); });
     });
