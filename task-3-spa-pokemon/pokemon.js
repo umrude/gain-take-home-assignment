@@ -335,7 +335,7 @@
         if (card.getAttribute('data-' + NS + '-id') !== String(id)) return; // card reused meanwhile
         const { name, id: pokemonId, types, stats, abilities, cries, sprites, height, weight } = p;
         const pokemonNumber = String(pokemonId).padStart(4, '0'); // 1 → "0001"
-        const pokemonName = name.charAt(0).toUpperCase() + name.slice(1); // API names are lowercase
+        const pokemonName = capitalise(name); // API names are lowercase
         // Official artwork is large and smooth; the plain sprite (96px pixel art) is the fallback
         const image = sprites.other['official-artwork'].front_default || sprites.front_default || '';
 
@@ -345,14 +345,21 @@
             // width/height: the browser reserves the space before it loads, so cards don't jump.
             el('img', { class: NS + '-card__image', src: image, alt: '', width: '475', height: '475' })
           ]),
-          el('p', { class: NS + '-card__number', text: '#' + pokemonNumber }),
+          el('p', { class: NS + '-card__number', text: `#${pokemonNumber}` }),
           el('h2', { class: NS + '-card__name', text: pokemonName }),
           el(
             'ul',
             { class: NS + '-card__types' },
-            types.map((t) => el('li', { class: NS + '-tag ' + NS + '-tag--' + t.type.name, text: t.type.name }))
+            types.map(function (t) {
+              return el('li', { class: NS + '-tag ' + NS + '-tag--' + t.type.name, text: t.type.name });
+            })
           )
         ]);
+
+        // The six stats added up, the usual "BST" for comparing Pokémon at a glance
+        const baseStatTotal = stats.reduce(function (sum, s) {
+          return sum + s.base_stat;
+        }, 0);
 
         const cardBack = el('div', { class: NS + '-card__face ' + NS + '-card__back' }, [
           el('h3', { class: NS + '-card__back-title', text: pokemonName }),
@@ -365,31 +372,29 @@
                 class: NS + '-card__abilities',
                 // "swift-swim" → "Swift Swim"
                 text: abilities
-                  .map((a) =>
-                    a.ability.name
-                      .split('-')
-                      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                      .join(' ')
-                  )
+                  .map(function (a) {
+                    return a.ability.name.split('-').map(capitalise).join(' ');
+                  })
                   .join(', ')
               })
             ])
           ]),
           el('p', { class: NS + '-stats__title' }, [
             el('span', { text: 'Base stats' }),
-            // The six stats added up, the usual "BST" for comparing Pokémon at a glance
-            el('span', { text: 'Total ' + stats.reduce((sum, s) => sum + s.base_stat, 0) })
+            el('span', {
+              text: `Total ${baseStatTotal}`
+            })
           ]),
           el(
             'ul',
             { class: NS + '-stats' },
-            stats.map((s) =>
+            stats.map(function (s) {
               // --value drives the bar's width in CSS (out of 255, the highest base stat)
-              el('li', { class: NS + '-stat', style: `--value: ${s.base_stat}` }, [
+              return el('li', { class: NS + '-stat', style: `--value: ${s.base_stat}` }, [
                 el('span', { class: NS + '-stat__label', text: STAT_LABELS[s.stat.name] || s.stat.name }),
                 el('span', { class: NS + '-stat__value', text: s.base_stat })
-              ])
-            )
+              ]);
+            })
           )
         ]);
 
@@ -402,7 +407,11 @@
           tabindex: '0', // in the normal tab order (a positive number would jump it ahead of the page)
           'aria-pressed': String(wasFlipped), // flipped or not (flipCard keeps it in sync)
           'aria-label': `${pokemonName}, number ${pokemonId}. Show details`,
-          ['data-' + NS + '-types']: types.map((t) => t.type.name).join(' ') // "grass poison"
+          ['data-' + NS + '-types']: types
+            .map(function (t) {
+              return t.type.name;
+            })
+            .join(' ') // "grass poison"
         };
         if (cries && cries.latest) attrs['data-' + NS + '-cry'] = cries.latest; // some have no cry
         const cardContent = el('div', attrs, [el('div', { class: NS + '-card__inner' }, [cardFront, cardBack])]);
@@ -457,7 +466,9 @@
 
     // "Filter by type" (value "") is the placeholder, like the site's; picking it again shows every type
     const options = [el('option', { value: '', text: 'Filter by type' })].concat(
-      TYPES.map((type) => el('option', { value: type, text: capitalise(type) }))
+      TYPES.map(function (type) {
+        return el('option', { value: type, text: capitalise(type) });
+      })
     );
     // data-gain="gp": destroy() removes it on a re-run, so there's never a second, dead dropdown
     const typeFilter = el(
