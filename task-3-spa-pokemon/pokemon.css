@@ -53,7 +53,9 @@
  * they're hidden from the first paint, like the cards. Selected by their form `name`.
  */
 [data-behaviour='listing-filters'] select[name='post_tag'],
-[data-behaviour='listing-filters'] select[name='capability'] {
+[data-behaviour='listing-filters'] select[name='capability'],
+[data-behaviour='listing-filters'] select[name='sector'],
+[data-behaviour='listing-filters'] select[name='category'] {
   display: none !important;
 }
 

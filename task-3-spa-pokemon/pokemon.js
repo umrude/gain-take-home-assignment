@@ -12,7 +12,7 @@
  *   card inside, so React's reconciliation doesn't break.
  */
 (function () {
-  'use strict';
+  ('use strict');
 
   const NS = 'gp';
   const INSTANCE_KEY = '__gainPokemon';
@@ -56,7 +56,7 @@
    * so they're more stable than layout classes.
    * The filters are two native <select>s that React renders side by side in
    * `.filter-dropdown`, with no <label> ("Filter by Tags" is a placeholder <option>).
-   * The CSS hides both by their `name` (post_tag, capability), so JS never touches them.
+   * The CSS hides both by their `name` (post_tag, capability, sector, category), so JS never touches them.
    */
   const CARD = '[data-behaviour="listing"] .listing-box'; // also used in pokemon.css
   const FIND = {
