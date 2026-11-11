@@ -171,6 +171,10 @@
 
   const cache = window.__gainPokemonCache || (window.__gainPokemonCache = {}); // survives re-runs
 
+  // Pokémon numbers (as strings) whose card is showing its back; see flipCard(). Not kept
+  // across a reload or re-run: those start fresh, face up.
+  const flippedIds = new Set();
+
   /** @returns {Promise<object>} raw PokeAPI pokemon */
   function getPokemon(id) {
     if (!cache[id]) {
@@ -300,6 +304,7 @@
    *         <div><dt>Weight</dt><dd>6.9 kg</dd></div>   (weight is in hectograms)
    *         <div><dt>Abilities</dt><dd class="gp-card__abilities">overgrow, chlorophyll</dd></div>
    *       </dl>
+   *       <p class="gp-stats__title"><span>Base stats</span><span>Total 318</span></p>
    *       <ul class="gp-stats">                          (one per p.stats entry)
    *         <li class="gp-stat" style="--value: 45">     (base_stat; the bar is drawn in CSS)
    *           <span class="gp-stat__label">HP</span><span class="gp-stat__value">45</span>
@@ -364,6 +369,11 @@
               })
             ])
           ]),
+          el('p', { class: NS + '-stats__title' }, [
+            el('span', { text: 'Base stats' }),
+            // The six stats added up, the usual "BST" for comparing Pokémon at a glance
+            el('span', { text: 'Total ' + stats.reduce((sum, s) => sum + s.base_stat, 0) })
+          ]),
           el(
             'ul',
             { class: NS + '-stats' },
@@ -377,11 +387,14 @@
           )
         ]);
 
+        // Flipped before you paged away? Then it's built already flipped: the class is there
+        // from the start, so there's no flip animation and no cry, it just comes back as it was.
+        const wasFlipped = flippedIds.has(String(id));
         const attrs = {
-          class: NS + '-card',
+          class: NS + '-card' + (wasFlipped ? ' ' + NS + '-card--flipped' : ''),
           role: 'button', // announced as something you can press
           tabindex: '0', // in the normal tab order (a positive number would jump it ahead of the page)
-          'aria-pressed': 'false', // flipped or not (onListClick keeps it in sync)
+          'aria-pressed': String(wasFlipped), // flipped or not (flipCard keeps it in sync)
           'aria-label': `${pokemonName}, number ${pokemonId}. Show details`,
           ['data-' + NS + '-types']: types.map((t) => t.type.name).join(' ') // "grass poison"
         };
@@ -477,10 +490,16 @@
    * The class is prefixed (gp-card--flipped), not a generic `is-flipped`: in Task 2 an
    * unprefixed `is-open` picked up a rule from the site's own CSS and turned a tooltip
    * upside down. aria-pressed tells screen readers which side is showing.
+   * flippedIds remembers it by Pokémon number (the <li>'s data-gp-id), because React
+   * throws the <li>s away when paging: coming back to the page, renderCard rebuilds the
+   * card already flipped.
    */
   function flipCard(card) {
     const flipped = card.classList.toggle(NS + '-card--flipped');
     card.setAttribute('aria-pressed', String(flipped));
+    const id = card.closest('[data-' + NS + '-id]').getAttribute('data-' + NS + '-id');
+    if (flipped) flippedIds.add(id);
+    else flippedIds.delete(id);
     const cry = card.getAttribute('data-' + NS + '-cry');
     if (cry && flipped) playAudio(cry);
   }

@@ -359,12 +359,31 @@
   text-transform: capitalize;
 }
 
+/* "Base stats ........ Total 318" */
+.gp-stats__title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0 0;
+  color: var(--gp-muted);
+  font-family: var(--gp-font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 /* Base stats: label | value | bar. The bar is the <li>'s ::after, filled to
-   --value / 255 (255 is the highest base stat there is) in the card's accent colour. */
+   --value / 255 (255 is the highest base stat there is) in the card's accent colour.
+   The front (with the artwork) is usually the taller side, and both faces share one
+   height, so the stats take whatever space is left (flex: 1) and space their rows out
+   evenly in it, instead of leaving a hole. When the back is the taller side there's no
+   space left over, and the rows just sit 6px apart. */
 .gp-stats {
   display: grid;
+  flex: 1;
+  align-content: space-evenly;
   gap: 6px;
-  margin: auto 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
