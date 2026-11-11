@@ -18,6 +18,13 @@
   const INSTANCE_KEY = '__gainPokemon';
   const PER_PAGE = 12;
   const API = 'https://pokeapi.co/api/v2/pokemon/';
+  /*
+   * The 18 regular types, as the brief asks ("listing the 18 regular Pokémon types"), in
+   * the games' order. Deliberately not fetched from /api/v2/type/: that also returns
+   * stellar (a Tera-only type), unknown and shadow, which no Pokémon has as its type, so
+   * they'd need filtering out by a hardcoded rule anyway. A fixed list also means the
+   * dropdown appears straight away and keeps working if PokeAPI is slow or down.
+   */
   const TYPES = [
     'normal',
     'fire',
@@ -57,8 +64,13 @@
     root: function () {
       return document.getElementById('archive-listing');
     },
+    // A <div> holding the cards' <ul> AND the page numbers' <nav>, not the <ul> itself
     list: function () {
       return document.querySelector('[data-behaviour="listing"]');
+    },
+    // The <ul> of cards; the empty message goes right after it, above the page numbers
+    grid: function () {
+      return document.querySelector('[data-behaviour="listing"] > ul');
     },
     cards: function () {
       return document.querySelectorAll(CARD);
@@ -66,6 +78,10 @@
     // Holds React's two <select>s; our "Filter by type" <select> goes in here too (setupFilters)
     dropdowns: function () {
       return document.querySelector('[data-behaviour="listing-filters"] .filter-dropdown');
+    },
+    // React's "Filter by Capability" <select> (hidden by the CSS); ours goes right after it
+    capabilityFilter: function () {
+      return document.querySelector('[data-behaviour="listing-filters"] select[name="capability"]');
     }
   };
 
@@ -182,6 +198,60 @@
   function currentPage() {
     const m = location.pathname.match(/\/page\/(\d+)/);
     return m ? parseInt(m[1], 10) : 1;
+  }
+
+  function capitalise(word) {
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  }
+
+  /*
+   * The "no Pokémon of this type" message. Built once and placed right AFTER React's <ul>
+   * (so it's where the cards would be, above the page numbers), not inside it, so React's
+   * list only ever holds React's <li>s. If React ever replaces the <ul>, the message is
+   * put back next to the new one.
+   */
+  let emptyMessage = null;
+  function getEmptyMessage() {
+    const grid = FIND.grid();
+    if (!grid) return null;
+    if (!emptyMessage) emptyMessage = el('p', { class: NS + '-empty', 'data-gain': NS, role: 'status' });
+    if (emptyMessage.previousElementSibling !== grid) grid.after(emptyMessage);
+    return emptyMessage;
+  }
+
+  /*
+   * Shows only the cards of the chosen type ON THE CURRENT PAGE (no type: all of them).
+   * Runs after every card renders and on every dropdown change, so it just recomputes
+   * everything from scratch each time instead of tracking what changed.
+   */
+  function applyTypeFilter() {
+    const type = selectedType();
+    const cards = Array.from(FIND.cards());
+
+    cards.forEach(function (card) {
+      const gpCard = card.querySelector(':scope > .' + NS + '-card');
+      // "grass poison" → ['grass', 'poison']. Error and still-loading cards have no types.
+      const types = gpCard ? (gpCard.getAttribute('data-' + NS + '-types') || '').split(' ') : [];
+      // toggle(name, force): adds the class when force is true, removes it when false
+      card.classList.toggle(NS + '-hidden', type !== '' && !types.includes(type));
+    });
+
+    const empty = getEmptyMessage();
+    if (empty) {
+      // Wait until every card has loaded, or the message would flash while they arrive
+      const allLoaded = cards.every(function (card) {
+        return card.hasAttribute('data-' + NS + '-ready');
+      });
+      const noneShown = cards.every(function (card) {
+        return card.classList.contains(NS + '-hidden');
+      });
+      if (type) empty.textContent = 'No ' + capitalise(type) + ' Pokémon on this page.';
+      empty.hidden = !(type && allLoaded && noneShown); // a property, not setAttribute (el() gotcha)
+    }
+
+    // Keep the dropdown showing the stored type (e.g. after a re-run)
+    const select = document.querySelector('.' + NS + '-type-filter');
+    if (select && select.value !== type) select.value = type;
   }
 
   function selectedType() {
@@ -313,7 +383,7 @@
           tabindex: '0', // in the normal tab order (a positive number would jump it ahead of the page)
           'aria-pressed': 'false', // flipped or not (onListClick keeps it in sync)
           'aria-label': `${pokemonName}, number ${pokemonId}. Show details`,
-          ['data-' + NS + '-types']: types.map((t) => t.type.name).join(' ')
+          ['data-' + NS + '-types']: types.map((t) => t.type.name).join(' ') // "grass poison"
         };
         if (cries && cries.latest) attrs['data-' + NS + '-cry'] = cries.latest; // some have no cry
         const cardContent = el('div', attrs, [el('div', { class: NS + '-card__inner' }, [cardFront, cardBack])]);
@@ -325,6 +395,7 @@
         console.warn('[' + NS + '] #' + id, err);
         // A visible error card, not an invisible one (the anti-flash CSS hides a card until it's ready)
         showCard(card, el('div', { class: NS + '-card ' + NS + '-card--error', text: `Couldn't load Pokémon #${id}` }));
+        applyTypeFilter(); // an error card can be the last one to finish loading
       });
   }
 
@@ -345,29 +416,45 @@
     FIND.cards().forEach(renderCard);
   }
 
-  function applyTypeFilter() {
-    // TODO (PLAN 3.4): toggle .gp-hidden on the <li> cards whose data-gp-types doesn't
-    // include selectedType(); show/hide <p class="gp-empty" data-gain="gp" role="status">
-    // (insert it once, right AFTER FIND.list(), not inside React's <ul>); set .hidden as a
-    // property (el() gotcha); keep the <select>'s value in sync.
-  }
-
   /* ---------------------------------------------------------------- filters */
 
   /*
-   * React owns its two <select>s (their options and value), so changing them in place
-   * would be undone on its next render. Instead the CSS hides both, and we add our own
-   * <select> inside the same .filter-dropdown, so it picks up the site's select styling.
+   * "Turn the Filter by Capability dropdown into Filter by type": the CSS hides React's
+   * capability <select>, and ours takes its exact place (inserted right after it).
+   * Why not edit React's <select> itself: it's React's (props name/value/onChange), and
+   * its onChange POSTs to admin-ajax.php?action=list_results and swaps the article list.
+   * Picking "fire" there would ask the server for capability "fire" and clear the cards,
+   * while the brief wants "only the Pokémon of that type ON THE CURRENT PAGE". Blocking that
+   * would need stopPropagation (hiding the filter from analytics), and React would still
+   * restore its own value/options whenever it re-renders. Ours is invisible to React.
    * React doesn't redraw the filters when paging (a DevTools "subtree modifications"
-   * breakpoint on them never fired), so ours stays put. Still, this is safe to call
-   * repeatedly (the observer does) and only adds ours if it's missing: a cheap safety net.
+   * breakpoint on them never fired), so ours stays put and keeps its value. Still, this is
+   * safe to call repeatedly (the observer does) and only adds ours if it's missing.
    */
   function setupFilters() {
-    // TODO (PLAN 3.4): if FIND.dropdowns() has no .gp-type-filter, append
-    // <select class="gp-type-filter" data-gain="gp" aria-label="Filter by type"> with a placeholder
-    // option "Filter by type" (value "", like the site's) + one option per TYPES entry;
-    // set its value to selectedType(); bind change -> setSelectedType.
-    void TYPES;
+    const dropdowns = FIND.dropdowns();
+    if (!dropdowns || dropdowns.querySelector('.' + NS + '-type-filter')) return; // not rendered yet, or already done
+
+    // "Filter by type" (value "") is the placeholder, like the site's; picking it again shows every type
+    const options = [el('option', { value: '', text: 'Filter by type' })].concat(
+      TYPES.map((type) => el('option', { value: type, text: capitalise(type) }))
+    );
+    // data-gain="gp": destroy() removes it on a re-run, so there's never a second, dead dropdown
+    const typeFilter = el(
+      'select',
+      { class: NS + '-type-filter', 'data-gain': NS, 'aria-label': 'Filter by type' },
+      options
+    );
+
+    const capability = FIND.capabilityFilter();
+    if (capability)
+      capability.after(typeFilter); // takes the hidden capability dropdown's exact place
+    else dropdowns.append(typeFilter);
+
+    typeFilter.value = selectedType();
+    on(typeFilter, 'change', function () {
+      setSelectedType(typeFilter.value);
+    });
   }
 
   /* ---------------------------------------------------------------- interactions */
