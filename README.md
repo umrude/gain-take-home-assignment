@@ -65,6 +65,7 @@ Each task has two files:
   - **The chosen type** is kept in `sessionStorage` and re-applied after every redraw, so it stays selected when changing pages.
   - **Following React's updates without history hooks.** Paging, filtering and the browser's back and forward buttons all end with React replacing the cards, and React updates the URL before it does. So one `MutationObserver` on the listing is enough: by the time it fires, the page number in the URL is already the new one. I checked this, including back and forward. Wrapping `history.pushState` would patch a global that the site and its analytics also use, to learn something the cards already tell us. Our own changes trigger the observer once more, but by then every card is done, so it settles (0 changes in the 2s after).
   - **Flipped cards are remembered** while you're on the page (a `Set` of Pokémon numbers), because React throws the old cards away when paging. Coming back to a page, they're rebuilt already flipped, with no animation and no cry.
+  - **Bonus: the Pokémon's cry.** Flipping a card to its back plays that Pokémon's cry from PokeAPI (`cries.latest`), at 40% volume so it doesn't startle. It only plays when you flip a card yourself: not when turning it back to the front, and not when a remembered card comes back already flipped after paging. Some Pokémon have no cry, so those just flip silently. If the browser blocks the sound or the file fails to load, `play()` rejects; that's caught, so it never shows up as an "Uncaught (in promise)" error and the flip works the same.
   - **The 18 types are a fixed list** in the games' order. PokeAPI's `/type/` endpoint also returns `stellar`, `unknown` and `shadow`, which no Pokémon has as its type, so they'd need filtering out by a hardcoded rule anyway. A fixed list also shows the dropdown straight away, even if PokeAPI is slow.
   - **Each Pokémon is fetched once** and cached on `window`, so paging back and re-running the script don't request it again. If a request fails, the card shows a visible error instead of staying hidden, and it's retried the next time that page is shown.
 - **Overlays and the cookie button:** the site manages consent with Cookiebot, which has a floating button at the bottom left. Consent withdrawal must stay easy to reach (UK/EU GDPR Art. 7(3)), so the two kinds of overlay are treated differently:
@@ -95,7 +96,7 @@ Each task has two files:
 
 ## How I tested
 
-All three tasks are covered by **103 automated browser tests** ([tests/](tests/)), written against the brief rather than against my code.
+All three tasks are covered by **105 automated browser tests** ([tests/](tests/)), written against the brief rather than against my code.
 
 ```bash
 npm install

@@ -30,8 +30,10 @@ const SITES = { home: { url: HOME, har: HAR }, blog: { url: BLOG, har: HAR_BLOG 
  * The fake PokeAPI. Made-up but predictable, so a test can work out what each card should
  * show: every 4th Pokémon is Fire, other odd ones Grass/Poison, other even ones Water,
  * and nothing is Dragon (for the "none of this type" message). The artwork is a data: URL,
- * so images "load" without any network.
+ * so images "load" without any network. Every Pokémon has a cry except #7 (some real ones
+ * have none); the cry URL is never fetched in tests (the recording aborts it).
  */
+const fakeCry = (id) => `https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest/${id}.ogg`;
 function fakeTypes(id) {
   if (id % 4 === 0) return ['fire'];
   return id % 2 ? ['grass', 'poison'] : ['water'];
@@ -44,7 +46,7 @@ function fakePokemon(id) {
     height: 7,
     weight: 69,
     abilities: [{ ability: { name: 'swift-swim' } }],
-    cries: {},
+    cries: id === 7 ? {} : { latest: fakeCry(id) },
     sprites: { front_default: '', other: { 'official-artwork': { front_default: art } } },
     stats: ['hp', 'attack', 'defense', 'special-attack', 'special-defense', 'speed'].map((name, i) => ({
       base_stat: 40 + i * 10,
@@ -259,4 +261,4 @@ const test = base.test.extend({
   }
 });
 
-module.exports = { test, expect: base.expect, TASKS, source, fakePokemon, fakeTypes };
+module.exports = { test, expect: base.expect, TASKS, source, fakePokemon, fakeTypes, fakeCry };

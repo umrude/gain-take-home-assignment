@@ -7,7 +7,7 @@
  * fakePokemon / fakeTypes, never from pokemon.js. Paging uses the site's real React
  * pagination, replayed from the recording (pages 1–3).
  */
-const { test, expect, source, fakeTypes } = require('./fixtures');
+const { test, expect, source, fakeTypes, fakeCry } = require('./fixtures');
 const { VIEWPORTS } = require('./paths');
 
 test.use({ site: 'blog' });
@@ -346,6 +346,54 @@ test('[Extra] Flipped cards are remembered when paging away and back', async ({ 
   await goToPage(page, 1);
   expect(await flippedIds(page)).toEqual([3, 4]);
   await expect(page.locator('.gp-card').nth(2)).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('[Bonus] Flipping a card to its back plays the Pokémon’s cry', async ({ page, gain }) => {
+  await gain.open(['pokemon']);
+  await pageReady(page, 1);
+  // Swap the browser's Audio for a stub that notes what would play (headless has no speakers)
+  await page.evaluate(() => {
+    window.__played = [];
+    window.Audio = function (url) {
+      this.play = () => {
+        window.__played.push({ url, volume: this.volume });
+        return Promise.resolve();
+      };
+    };
+  });
+  const played = () => page.evaluate(() => window.__played);
+  const card = (i) => page.locator('.gp-card').nth(i);
+
+  await card(0).click(); // to the back: its cry, at a gentle volume
+  expect(await played()).toEqual([{ url: fakeCry(1), volume: 0.4 }]);
+  await card(0).click(); // back to the front: silent
+  await card(6).click(); // #7 has no cry: flips, silently
+  await expect(card(6)).toHaveAttribute('aria-pressed', 'true');
+  await card(2).focus(); // the keyboard flip plays it too
+  await page.keyboard.press('Enter');
+  expect((await played()).map((p) => p.url)).toEqual([fakeCry(1), fakeCry(3)]);
+
+  // A remembered card coming back already flipped doesn't replay its cry
+  await goToPage(page, 2);
+  await goToPage(page, 1);
+  await expect(card(2)).toHaveAttribute('aria-pressed', 'true');
+  expect(await played()).toHaveLength(2);
+});
+
+test('[Extra] A blocked or missing cry is harmless: the card still flips, with no error', async ({ page, gain }) => {
+  // The real Audio, with the cry's URL unreachable (the recording aborts it): play() rejects
+  await gain.open(['pokemon']);
+  await pageReady(page, 1);
+  const errors = [];
+  // A rejected play() would surface as an uncaught NotSupportedError (no playable source)
+  // or NotAllowedError (autoplay blocked). The type is in the error's name, not its message.
+  page.on('pageerror', (e) => /NotSupported|NotAllowed/.test(e.name) && errors.push(e.name + ': ' + e.message));
+  const cryFailed = page.waitForEvent('requestfailed', (r) => r.url() === fakeCry(1));
+  await page.locator('.gp-card').first().click();
+  await expect(page.locator('.gp-card').first()).toHaveAttribute('aria-pressed', 'true');
+  await cryFailed; // the cry really was tried and failed, so play() rejected...
+  await page.waitForTimeout(500); // ...and that rejection has had time to surface
+  expect(errors, 'no "Uncaught (in promise)"').toEqual([]);
 });
 
 /* ---------------------------------------------------------------- persistence, re-runs */
