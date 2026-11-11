@@ -7,7 +7,7 @@
  * - CSS hides original article cards until they're marked [data-gp-ready], so
  *   article content never flashes (works even before this JS runs).
  * - A MutationObserver on the list re-applies changes whenever React re-renders
- *   (paging / filtering), plus a history hook for URL changes.
+ *   (paging, filtering, back/forward); no history hooks needed (see observe()).
  * - We never remove React's nodes; we hide their contents and append our own
  *   card inside, so React's reconciliation doesn't break.
  */
@@ -517,13 +517,15 @@
 
   /* ---------------------------------------------------------------- SPA watching */
 
-  function hookHistory() {
-    // React Router-style navigation fires pushState/replaceState, not a load event.
-    // TODO (PLAN 3.5): wrap history.pushState/replaceState to dispatch a custom event;
-    // restore the originals in destroy().
-    on(window, 'popstate', processList);
-  }
-
+  /*
+   * Watching the DOM is all it takes; no history hooks. Paging, filtering AND the browser's
+   * back/forward buttons all end with React swapping the cards, which this sees. React
+   * changes the URL first (checked for paging and back/forward), so currentPage() is already
+   * right when it fires. Wrapping history.pushState instead would patch a global the site
+   * and its analytics also use, to learn something the cards already tell us.
+   * No endless loop from our own changes: they trigger this again, but on that pass every
+   * card already has its Pokémon and the dropdown exists, so nothing new is done.
+   */
   function observe(list) {
     let scheduled = false;
     const mo = new MutationObserver(function () {
@@ -555,8 +557,7 @@
       n.removeAttribute('data-' + NS + '-ready');
       n.classList.remove(NS + '-hidden');
     });
-    // TODO (PLAN 3.5): restore the original history.pushState / replaceState
-    // (React's own <select>s need nothing: the CSS hides them, we never touched them)
+    // React's own <select>s need nothing: the CSS hides them, we never touched them
     delete window[INSTANCE_KEY];
   }
 
@@ -574,7 +575,6 @@
       setupFilters();
       processList();
       observe(root);
-      hookHistory();
       // One listener each on the wrapper (event delegation), so cards React adds later work too
       on(root, 'click', onListClick);
       on(root, 'keydown', onListKeyDown);
