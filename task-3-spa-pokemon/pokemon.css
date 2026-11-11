@@ -8,7 +8,13 @@
 [data-behaviour="listing"] .listing-box > :not(.gp-card) { display: none !important; }
 [data-behaviour="listing"] .listing-box:not([data-gp-ready]) { visibility: hidden; } /* keeps layout, no flash */
 
-/* TODO: hide "Filter by Tags" wrapper */
+/*
+ * Hide React's two dropdowns: "Filter by Tags" (the brief), and "Filter by Capability",
+ * which our own "Filter by type" <select> replaces (pokemon.js setupFilters). In CSS, so
+ * they're hidden from the first paint, like the cards. Selected by their form `name`.
+ */
+[data-behaviour="listing-filters"] select[name="post_tag"],
+[data-behaviour="listing-filters"] select[name="capability"] { display: none !important; }
 
 :root {
   --gp-radius: 12px;

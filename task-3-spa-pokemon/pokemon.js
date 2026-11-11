@@ -19,8 +19,24 @@
   const PER_PAGE = 12;
   const API = 'https://pokeapi.co/api/v2/pokemon/';
   const TYPES = [
-    'normal', 'fire', 'water', 'electric', 'grass', 'ice', 'fighting', 'poison', 'ground',
-    'flying', 'psychic', 'bug', 'rock', 'ghost', 'dragon', 'dark', 'steel', 'fairy'
+    'normal',
+    'fire',
+    'water',
+    'electric',
+    'grass',
+    'ice',
+    'fighting',
+    'poison',
+    'ground',
+    'flying',
+    'psychic',
+    'bug',
+    'rock',
+    'ghost',
+    'dragon',
+    'dark',
+    'steel',
+    'fairy'
   ];
   const STORAGE_KEY = NS + '-type';
 
@@ -30,20 +46,50 @@
 
   /*
    * Where things live on the page. `data-behaviour` attributes are the theme's JS hooks,
-   * so they're more stable than layout classes. The filters are rendered by React into
-   * `.listing-filters`, so the dropdowns are found by their visible label text.
+   * so they're more stable than layout classes. The filters are two native <select>s that
+   * React renders side by side in `.filter-dropdown`. They have no <label>: "Filter by Tags"
+   * is the first <option> (a placeholder). Their `name`s are WordPress's taxonomy names,
+   * the most stable thing to select on.
    */
   const CARD = '[data-behaviour="listing"] .listing-box'; // also used in pokemon.css
   const FIND = {
     // Wraps filters + list; React may swap the <ul> inside, so observe this instead.
-    root: function () { return document.getElementById('archive-listing'); },
-    list: function () { return document.querySelector('[data-behaviour="listing"]'); },
-    cards: function () { return document.querySelectorAll(CARD); },
-    filters: function () { return document.querySelector('[data-behaviour="listing-filters"]'); },
-    // TODO: confirm in the browser which wrapper holds each dropdown (label + select/button).
-    tagsFilter: function () { return filterByLabel('Filter by Tags'); },
-    capabilityFilter: function () { return filterByLabel('Filter by Capability'); }
+    root: function () {
+      return document.getElementById('archive-listing');
+    },
+    list: function () {
+      return document.querySelector('[data-behaviour="listing"]');
+    },
+    cards: function () {
+      return document.querySelectorAll(CARD);
+    },
+    filters: function () {
+      return document.querySelector('[data-behaviour="listing-filters"]');
+    },
+    // Holds both <select>s; our "Filter by type" <select> goes in here too (see setupFilters)
+    dropdowns: function () {
+      return document.querySelector('[data-behaviour="listing-filters"] .filter-dropdown');
+    },
+    tagsFilter: function () {
+      return document.querySelector('[data-behaviour="listing-filters"] select[name="post_tag"]');
+    },
+    capabilityFilter: function () {
+      return document.querySelector('[data-behaviour="listing-filters"] select[name="capability"]');
+    },
     // TODO: pagination — rendered by React; check its markup and the page URL format.
+    // URL format: https://www.thisisgain.com/blog/page/2/
+    paginationWrapper: function () {
+      return document.querySelector('.pagination');
+    },
+    paginationLinks: function () {
+      return document.querySelectorAll('.pagination .pagination__item .pagination__link:not(.pagination__link--arrow)');
+    },
+    paginationPrev: function () {
+      return document.querySelector('.pagination__link--prev');
+    },
+    paginationNext: function () {
+      return document.querySelector('.pagination__link--next');
+    }
   };
 
   const controller = new AbortController();
@@ -59,7 +105,12 @@
    * Works at document-start: observes `document` (it exists even before <html>) and re-checks at most once per frame.
    */
   function waitFor(finder, timeout) {
-    const check = typeof finder === 'function' ? finder : function () { return document.querySelector(finder); };
+    const check =
+      typeof finder === 'function'
+        ? finder
+        : function () {
+            return document.querySelector(finder);
+          };
     return new Promise(function (resolve, reject) {
       const found = check();
       if (found) return resolve(found);
@@ -72,26 +123,23 @@
         requestAnimationFrame(function () {
           queued = false;
           const result = check();
-          if (result) { obs.disconnect(); clearTimeout(timer); resolve(result); }
+          if (result) {
+            obs.disconnect();
+            clearTimeout(timer);
+            resolve(result);
+          }
         });
       });
       obs.observe(document, { childList: true, subtree: true });
-      const timer = setTimeout(function () { obs.disconnect(); reject(new Error('waitFor timeout')); }, timeout || 15000);
-      controller.signal.addEventListener('abort', function () { obs.disconnect(); clearTimeout(timer); });
+      const timer = setTimeout(function () {
+        obs.disconnect();
+        reject(new Error('waitFor timeout'));
+      }, timeout || 15000);
+      controller.signal.addEventListener('abort', function () {
+        obs.disconnect();
+        clearTimeout(timer);
+      });
     });
-  }
-
-  function norm(s) { return (s || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
-
-  // Smallest element inside the filters whose text starts with `label`, then up to its wrapper.
-  function filterByLabel(label) {
-    const filters = FIND.filters();
-    if (!filters) return null;
-    const match = Array.prototype.filter.call(filters.querySelectorAll('*'), function (n) {
-      return norm(n.textContent).indexOf(norm(label)) === 0;
-    }).pop(); // deepest match = the label itself
-    // TODO: adjust once the dropdown markup is known (e.g. closest('.listing-filters__filter')).
-    return match ? match.parentElement : null;
   }
 
   /* ---------------------------------------------------------------- PokeAPI (cached) */
@@ -102,25 +150,44 @@
   function getPokemon(id) {
     if (!cache[id]) {
       cache[id] = fetch(API + id)
-        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-        .catch(function (e) { delete cache[id]; throw e; });
+        .then(function (r) {
+          if (!r.ok) throw new Error(r.status);
+          return r.json();
+        })
+        .catch(function (e) {
+          delete cache[id];
+          throw e;
+        });
     }
     return cache[id];
   }
 
   /* ---------------------------------------------------------------- page / filter state */
 
+  /*
+   * Page number from the URL: /blog/ is page 1, /blog/page/2/ is page 2.
+   * Safe to read while rendering cards: when paging, React updates the URL BEFORE it puts
+   * the new cards in (checked with a MutationObserver on the list, which logged
+   * /blog/page/2/ as the cards changed), so new cards never get the old page's numbers.
+   */
   function currentPage() {
-    // TODO: confirm the URL format used by the blog pagination (e.g. /blog/page/2/ or ?page=2)
-    const m = location.pathname.match(/\/page\/(\d+)/) || location.search.match(/[?&]page=(\d+)/);
+    const m = location.pathname.match(/\/page\/(\d+)/);
     return m ? parseInt(m[1], 10) : 1;
   }
 
   function selectedType() {
-    try { return sessionStorage.getItem(STORAGE_KEY) || ''; } catch (e) { return ''; }
+    try {
+      return sessionStorage.getItem(STORAGE_KEY) || '';
+    } catch (e) {
+      return '';
+    }
   }
   function setSelectedType(t) {
-    try { sessionStorage.setItem(STORAGE_KEY, t); } catch (e) { /* storage blocked */ }
+    try {
+      sessionStorage.setItem(STORAGE_KEY, t);
+    } catch (e) {
+      /* storage blocked */
+    }
     applyTypeFilter();
   }
 
@@ -132,14 +199,18 @@
     card.setAttribute('data-' + NS + '-id', String(id));
     card.removeAttribute('data-' + NS + '-ready');
 
-    getPokemon(id).then(function (p) {
-      if (card.getAttribute('data-' + NS + '-id') !== String(id)) return; // card reused meanwhile
-      // TODO: build flip card (front: image, #id, name, type tags; back: stats/height/weight/abilities)
-      // append it inside `card` as .gp-card, set data-gp-types="fire flying"
-      void p;
-      card.setAttribute('data-' + NS + '-ready', '');
-      applyTypeFilter();
-    }).catch(function (err) { console.warn('[' + NS + '] #' + id, err); });
+    getPokemon(id)
+      .then(function (p) {
+        if (card.getAttribute('data-' + NS + '-id') !== String(id)) return; // card reused meanwhile
+        // TODO: build flip card (front: image, #id, name, type tags; back: stats/height/weight/abilities)
+        // append it inside `card` as .gp-card, set data-gp-types="fire flying"
+        void p;
+        card.setAttribute('data-' + NS + '-ready', '');
+        applyTypeFilter();
+      })
+      .catch(function (err) {
+        console.warn('[' + NS + '] #' + id, err);
+      });
   }
 
   function processList() {
@@ -153,9 +224,19 @@
 
   /* ---------------------------------------------------------------- filters */
 
+  /*
+   * React owns its two <select>s (their options and value), so changing them in place
+   * would be undone on its next render. Instead the CSS hides both, and we add our own
+   * <select> inside the same .filter-dropdown, so it picks up the site's select styling.
+   * React doesn't redraw the filters when paging (a DevTools "subtree modifications"
+   * breakpoint on them never fired), so ours stays put. Still, this is safe to call
+   * repeatedly (the observer does) and only adds ours if it's missing: a cheap safety net.
+   */
   function setupFilters() {
-    // TODO: hide FIND.tagsFilter() (add a class), replace FIND.capabilityFilter() contents with
-    // our own <select> of TYPES ("Filter by type"), bind change -> setSelectedType.
+    // TODO (PLAN 3.4): if FIND.dropdowns() has no .gp-type-filter, append
+    // <select class="gp-type-filter" aria-label="Filter by type"> with a placeholder
+    // option "Filter by type" (value "", like the site's) + one option per TYPES entry;
+    // set its value to selectedType(); bind change -> setSelectedType.
     void TYPES;
   }
 
@@ -184,7 +265,11 @@
       if (scheduled) return;
       scheduled = true;
       // Microtask: runs before the next paint, so original content isn't shown.
-      queueMicrotask(function () { scheduled = false; processList(); setupFilters(); });
+      queueMicrotask(function () {
+        scheduled = false;
+        processList();
+        setupFilters();
+      });
     });
     mo.observe(list, { childList: true, subtree: true });
     observers.push(mo);
@@ -194,8 +279,12 @@
 
   function destroy() {
     controller.abort();
-    observers.forEach(function (o) { o.disconnect(); });
-    document.querySelectorAll('.' + NS + '-card, [data-gain="' + NS + '"]').forEach(function (n) { n.remove(); });
+    observers.forEach(function (o) {
+      o.disconnect();
+    });
+    document.querySelectorAll('.' + NS + '-card, [data-gain="' + NS + '"]').forEach(function (n) {
+      n.remove();
+    });
     document.querySelectorAll('[data-' + NS + '-id]').forEach(function (n) {
       n.removeAttribute('data-' + NS + '-id');
       n.removeAttribute('data-' + NS + '-ready');
@@ -215,5 +304,7 @@
       hookHistory();
       on(root, 'click', onListClick, { capture: true }); // capture: beat React's link handler
     })
-    .catch(function (err) { console.warn('[' + NS + ']', err); });
+    .catch(function (err) {
+      console.warn('[' + NS + ']', err);
+    });
 })();
