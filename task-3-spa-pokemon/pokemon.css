@@ -1,57 +1,444 @@
 /* Task 3 — SPA DOM Manipulation (Pokémon). Inject into <head>. Prefix: .gp- */
 
+:root {
+  /* GAIN brand tokens, the same values as Tasks 1 and 2 (each task's CSS stands alone) */
+  --gp-ink: #001400; /* "not-black" */
+  --gp-surface: #fff;
+  --gp-card: #f2f5f2; /* the light grey-green of Task 1's section and Task 2's slides */
+  --gp-line: rgba(0, 20, 0, 0.14);
+  --gp-muted: rgba(0, 20, 0, 0.64);
+  --gp-font: 'Inter Tight', 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+  --gp-font-mono: 'Anonymous Pro', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --gp-radius: 16px;
+  --gp-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --gp-flip: 0.6s;
+
+  /* Pokémon type colours (the games' conventional palette) */
+  --gp-normal: #a8a77a;
+  --gp-fire: #ee8130;
+  --gp-water: #6390f0;
+  --gp-electric: #f7d02c;
+  --gp-grass: #7ac74c;
+  --gp-ice: #96d9d6;
+  --gp-fighting: #c22e28;
+  --gp-poison: #a33ea1;
+  --gp-ground: #e2bf65;
+  --gp-flying: #a98ff3;
+  --gp-psychic: #f95587;
+  --gp-bug: #a6b91a;
+  --gp-rock: #b6a136;
+  --gp-ghost: #735797;
+  --gp-dragon: #6f35fc;
+  --gp-dark: #705746;
+  --gp-steel: #b7b7ce;
+  --gp-fairy: #d685ad;
+}
+
+/* ---------------------------------------------------------------- hiding React's content */
 /*
  * Anti-flash: hide every original card's own content until JS marks it ready.
- * Because this lives in <head>, it applies before the JS even runs.
- * Same selector as CARD in pokemon.js.
+ * Because this lives in <head>, it applies before the JS even runs, and to every card
+ * React puts in later (it replaces the <li>s when paging). Same selector as CARD in pokemon.js.
  */
-[data-behaviour="listing"] .listing-box > :not(.gp-card) { display: none !important; }
-[data-behaviour="listing"] .listing-box:not([data-gp-ready]) { visibility: hidden; } /* keeps layout, no flash */
+[data-behaviour='listing'] .listing-box > :not(.gp-card) {
+  display: none !important;
+}
+[data-behaviour='listing'] .listing-box:not([data-gp-ready]) {
+  visibility: hidden; /* keeps the grid's layout, shows no article content */
+}
 
 /*
  * Hide React's two dropdowns: "Filter by Tags" (the brief), and "Filter by Capability",
  * which our own "Filter by type" <select> replaces (pokemon.js setupFilters). In CSS, so
  * they're hidden from the first paint, like the cards. Selected by their form `name`.
  */
-[data-behaviour="listing-filters"] select[name="post_tag"],
-[data-behaviour="listing-filters"] select[name="capability"] { display: none !important; }
-
-:root {
-  --gp-radius: 12px;
-  --gp-flip: .6s;
-  /* type colours */
-  --gp-normal: #a8a77a; --gp-fire: #ee8130; --gp-water: #6390f0; --gp-electric: #f7d02c;
-  --gp-grass: #7ac74c;  --gp-ice: #96d9d6;  --gp-fighting: #c22e28; --gp-poison: #a33ea1;
-  --gp-ground: #e2bf65; --gp-flying: #a98ff3; --gp-psychic: #f95587; --gp-bug: #a6b91a;
-  --gp-rock: #b6a136;   --gp-ghost: #735797; --gp-dragon: #6f35fc; --gp-dark: #705746;
-  --gp-steel: #b7b7ce;  --gp-fairy: #d685ad;
+[data-behaviour='listing-filters'] select[name='post_tag'],
+[data-behaviour='listing-filters'] select[name='capability'] {
+  display: none !important;
 }
 
-/* ---------------------------------------------------------------- flip card */
+/* Our "Filter by type" <select> sits in React's .filter-dropdown, so it should pick up the
+   site's select styling. Check in the browser; add rules here only if it doesn't. */
 
-.gp-card { perspective: 1000px; cursor: pointer; height: 100%; }
-.gp-card__inner {
-  position: relative;
-  display: grid; /* front & back stacked in one cell */
-  height: 100%;
-  transform-style: preserve-3d;
-  transition: transform var(--gp-flip) cubic-bezier(.2, .8, .2, 1);
+/* Filtered out by type (applyTypeFilter): the site's grid closes the gap */
+.gp-hidden {
+  display: none !important;
 }
-.gp-card.is-flipped .gp-card__inner { transform: rotateY(180deg); }
-.gp-card__face {
-  grid-area: 1 / 1;
+
+/* ---------------------------------------------------------------- card */
+/*
+ * Markup: see renderCard() in pokemon.js.
+ *   .gp-card            the focusable "button"; lifts on hover (translate)
+ *     .gp-card__inner   flips (transform). Two different elements, so the two
+ *                       transforms never fight (the Task 2 chevron lesson)
+ *       .gp-card__face  front + back stacked in ONE grid cell, so the card is as tall
+ *                       as its taller side and both sides always match
+ *
+ * The site's grid (col-span-12 / sm:col-span-6 / md:col-span-4 on each <li>) already gives
+ * 1, 2 or 3 columns; the <li> is made a flex column so our card fills its full height and
+ * cards in a row line up.
+ */
+[data-behaviour='listing'] .listing-box[data-gp-id] {
   display: flex;
   flex-direction: column;
-  backface-visibility: hidden;
-  border-radius: var(--gp-radius);
+  /* No double frame: the site's own article-card box (border, padding, background) would
+     sit around our card. Cleared on cards we've taken over only, including any frame
+     drawn with ::before / ::after. */
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  box-shadow: none;
 }
-.gp-card__back { transform: rotateY(180deg); }
+[data-behaviour='listing'] .listing-box[data-gp-id]::before,
+[data-behaviour='listing'] .listing-box[data-gp-id]::after {
+  display: none;
+}
 
-/* TODO: image, name, tags (.gp-tag--fire etc.), stats bars on the back */
+.gp-card {
+  --gp-accent: var(--gp-normal); /* overridden by the first type, below */
+  position: relative;
+  flex: 1;
+  border-radius: var(--gp-radius);
+  color: var(--gp-ink);
+  font-family: var(--gp-font);
+  cursor: pointer;
+  perspective: 1200px;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    translate 0.25s var(--gp-ease),
+    box-shadow 0.25s;
+  animation: gp-in 0.4s var(--gp-ease) both; /* fades in when it's added (bonus) */
+}
+.gp-card:focus-visible {
+  outline: 2px solid var(--gp-ink);
+  outline-offset: 3px;
+}
+@keyframes gp-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
 
-.gp-hidden { display: none !important; }
-.gp-empty { /* TODO: empty message when no Pokémon match the type */ }
+.gp-card__inner {
+  display: grid;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform var(--gp-flip) var(--gp-ease);
+}
+.gp-card--flipped .gp-card__inner {
+  transform: rotateY(180deg);
+}
+
+.gp-card__face {
+  grid-area: 1 / 1; /* both faces in the same cell */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid transparent;
+  border-radius: var(--gp-radius);
+  background: var(--gp-card);
+  -webkit-backface-visibility: hidden; /* Safari */
+  backface-visibility: hidden;
+}
+.gp-card__back {
+  transform: rotateY(180deg);
+}
+
+/* ---------------------------------------------------------------- front */
+
+.gp-card__media {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  border-radius: calc(var(--gp-radius) - 6px);
+  /* a soft wash of the main type's colour behind the artwork */
+  background: radial-gradient(
+    circle at 50% 55%,
+    color-mix(in srgb, var(--gp-accent) 45%, white) 0 45%,
+    color-mix(in srgb, var(--gp-accent) 18%, white) 46%
+  );
+}
+.gp-card__image {
+  width: 80%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 10px rgba(0, 20, 0, 0.18));
+}
+
+.gp-card__number,
+.gp-tag,
+.gp-card__facts dt,
+.gp-stat__label {
+  font-family: var(--gp-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.gp-card__number {
+  margin: 4px 0 0;
+  color: var(--gp-muted);
+  font-size: 0.8125rem;
+}
+.gp-card__name,
+.gp-card__back-title {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-transform: capitalize; /* PokeAPI names are lowercase ("bulbasaur") */
+}
+
+/* Type tags: pills in the type's colour. Text is dark on light types and white on the
+   five dark ones, so every tag passes WCAG AA contrast. */
+.gp-card__types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: auto 0 0; /* pinned to the bottom of the front */
+  padding: 0;
+  list-style: none;
+}
+.gp-tag {
+  --tag: var(--gp-normal);
+  --tag-fg: var(--gp-ink);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--tag);
+  color: var(--tag-fg);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.gp-tag--normal {
+  --tag: var(--gp-normal);
+}
+.gp-tag--fire {
+  --tag: var(--gp-fire);
+}
+.gp-tag--water {
+  --tag: var(--gp-water);
+}
+.gp-tag--electric {
+  --tag: var(--gp-electric);
+}
+.gp-tag--grass {
+  --tag: var(--gp-grass);
+}
+.gp-tag--ice {
+  --tag: var(--gp-ice);
+}
+.gp-tag--fighting {
+  --tag: var(--gp-fighting);
+  --tag-fg: #fff;
+}
+.gp-tag--poison {
+  --tag: var(--gp-poison);
+  --tag-fg: #fff;
+}
+.gp-tag--ground {
+  --tag: var(--gp-ground);
+}
+.gp-tag--flying {
+  --tag: var(--gp-flying);
+}
+.gp-tag--psychic {
+  --tag: var(--gp-psychic);
+}
+.gp-tag--bug {
+  --tag: var(--gp-bug);
+}
+.gp-tag--rock {
+  --tag: var(--gp-rock);
+}
+.gp-tag--ghost {
+  --tag: var(--gp-ghost);
+  --tag-fg: #fff;
+}
+.gp-tag--dragon {
+  --tag: var(--gp-dragon);
+  --tag-fg: #fff;
+}
+.gp-tag--dark {
+  --tag: var(--gp-dark);
+  --tag-fg: #fff;
+}
+.gp-tag--steel {
+  --tag: var(--gp-steel);
+}
+.gp-tag--fairy {
+  --tag: var(--gp-fairy);
+}
+
+/* The card's accent (artwork wash, stat bars) comes from its FIRST type:
+   data-gp-types="fire flying" starts with "fire". */
+[data-gp-types^='normal'] {
+  --gp-accent: var(--gp-normal);
+}
+[data-gp-types^='fire'] {
+  --gp-accent: var(--gp-fire);
+}
+[data-gp-types^='water'] {
+  --gp-accent: var(--gp-water);
+}
+[data-gp-types^='electric'] {
+  --gp-accent: var(--gp-electric);
+}
+[data-gp-types^='grass'] {
+  --gp-accent: var(--gp-grass);
+}
+[data-gp-types^='ice'] {
+  --gp-accent: var(--gp-ice);
+}
+[data-gp-types^='fighting'] {
+  --gp-accent: var(--gp-fighting);
+}
+[data-gp-types^='poison'] {
+  --gp-accent: var(--gp-poison);
+}
+[data-gp-types^='ground'] {
+  --gp-accent: var(--gp-ground);
+}
+[data-gp-types^='flying'] {
+  --gp-accent: var(--gp-flying);
+}
+[data-gp-types^='psychic'] {
+  --gp-accent: var(--gp-psychic);
+}
+[data-gp-types^='bug'] {
+  --gp-accent: var(--gp-bug);
+}
+[data-gp-types^='rock'] {
+  --gp-accent: var(--gp-rock);
+}
+[data-gp-types^='ghost'] {
+  --gp-accent: var(--gp-ghost);
+}
+[data-gp-types^='dragon'] {
+  --gp-accent: var(--gp-dragon);
+}
+[data-gp-types^='dark'] {
+  --gp-accent: var(--gp-dark);
+}
+[data-gp-types^='steel'] {
+  --gp-accent: var(--gp-steel);
+}
+[data-gp-types^='fairy'] {
+  --gp-accent: var(--gp-fairy);
+}
+
+/* ---------------------------------------------------------------- back */
+
+.gp-card__back {
+  gap: 14px;
+}
+.gp-card__facts {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.gp-card__facts > div {
+  display: grid;
+  grid-template-columns: 9ch 1fr; /* label column wide enough for "Abilities" */
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--gp-line);
+}
+.gp-card__facts dt {
+  color: var(--gp-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.gp-card__facts dd {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+/* Abilities only: "overgrow" → "Overgrow" (on every <dd> it turned "6.9 kg" into "6.9 Kg") */
+.gp-card__abilities {
+  text-transform: capitalize;
+}
+
+/* Base stats: label | value | bar. The bar is the <li>'s ::after, filled to
+   --value / 255 (255 is the highest base stat there is) in the card's accent colour. */
+.gp-stats {
+  display: grid;
+  gap: 6px;
+  margin: auto 0 0;
+  padding: 0;
+  list-style: none;
+}
+.gp-stat {
+  display: grid;
+  grid-template-columns: 4ch 3ch 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+}
+.gp-stat__label {
+  color: var(--gp-muted);
+  font-size: 0.75rem;
+  /* Keep the usual stat spelling (HP, Atk, SpA, SpD): in capitals "SpA" reads as "SPA" */
+  text-transform: none;
+  letter-spacing: 0;
+}
+.gp-stat__value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.gp-stat::after {
+  content: '';
+  height: 6px;
+  border-radius: 999px;
+  background:
+    linear-gradient(var(--gp-accent), var(--gp-accent)) left / calc(var(--value, 0) / 255 * 100%) 100% no-repeat,
+    var(--gp-line);
+}
+
+/* ---------------------------------------------------------------- error + empty */
+
+/* PokeAPI failed: a visible, non-flipping card instead of an invisible one */
+.gp-card--error {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  padding: 16px;
+  background: var(--gp-card);
+  color: var(--gp-muted);
+  text-align: center;
+  cursor: default;
+}
+
+/* "No Pokémon of this type on this page" */
+.gp-empty {
+  margin: 24px 0;
+  padding: 32px 16px;
+  border: 1px dashed var(--gp-line);
+  border-radius: var(--gp-radius);
+  color: var(--gp-muted);
+  font-family: var(--gp-font);
+  text-align: center;
+}
+.gp-empty[hidden] {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- hover (pointer devices only) */
+/* Learned in Task 1: on touch screens :hover sticks to the last tapped element. */
+@media (hover: hover) {
+  .gp-card:not(.gp-card--error):hover {
+    translate: 0 -3px;
+    box-shadow: 0 10px 24px rgba(0, 20, 0, 0.12);
+  }
+  .gp-card:not(.gp-card--error):hover .gp-card__face {
+    border-color: var(--gp-ink);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .gp-card__inner { transition: none; }
+  .gp-card,
+  .gp-card__inner {
+    transition: none;
+    animation: none;
+  }
 }

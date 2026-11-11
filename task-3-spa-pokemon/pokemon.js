@@ -46,10 +46,10 @@
 
   /*
    * Where things live on the page. `data-behaviour` attributes are the theme's JS hooks,
-   * so they're more stable than layout classes. The filters are two native <select>s that
-   * React renders side by side in `.filter-dropdown`. They have no <label>: "Filter by Tags"
-   * is the first <option> (a placeholder). Their `name`s are WordPress's taxonomy names,
-   * the most stable thing to select on.
+   * so they're more stable than layout classes.
+   * The filters are two native <select>s that React renders side by side in
+   * `.filter-dropdown`, with no <label> ("Filter by Tags" is a placeholder <option>).
+   * The CSS hides both by their `name` (post_tag, capability), so JS never touches them.
    */
   const CARD = '[data-behaviour="listing"] .listing-box'; // also used in pokemon.css
   const FIND = {
@@ -63,33 +63,20 @@
     cards: function () {
       return document.querySelectorAll(CARD);
     },
-    filters: function () {
-      return document.querySelector('[data-behaviour="listing-filters"]');
-    },
-    // Holds both <select>s; our "Filter by type" <select> goes in here too (see setupFilters)
+    // Holds React's two <select>s; our "Filter by type" <select> goes in here too (setupFilters)
     dropdowns: function () {
       return document.querySelector('[data-behaviour="listing-filters"] .filter-dropdown');
-    },
-    tagsFilter: function () {
-      return document.querySelector('[data-behaviour="listing-filters"] select[name="post_tag"]');
-    },
-    capabilityFilter: function () {
-      return document.querySelector('[data-behaviour="listing-filters"] select[name="capability"]');
-    },
-    // TODO: pagination — rendered by React; check its markup and the page URL format.
-    // URL format: https://www.thisisgain.com/blog/page/2/
-    paginationWrapper: function () {
-      return document.querySelector('.pagination');
-    },
-    paginationLinks: function () {
-      return document.querySelectorAll('.pagination .pagination__item .pagination__link:not(.pagination__link--arrow)');
-    },
-    paginationPrev: function () {
-      return document.querySelector('.pagination__link--prev');
-    },
-    paginationNext: function () {
-      return document.querySelector('.pagination__link--next');
     }
+  };
+
+  // PokeAPI stat names → the short labels the games use
+  const STAT_LABELS = {
+    hp: 'HP',
+    attack: 'Atk',
+    defense: 'Def',
+    'special-attack': 'SpA',
+    'special-defense': 'SpD',
+    speed: 'Spe'
   };
 
   const controller = new AbortController();
@@ -140,6 +127,28 @@
         clearTimeout(timer);
       });
     });
+  }
+
+  /**
+   * Tiny DOM builder (same as Tasks 1 and 2): el('a', { class: 'x', href: '/y', text: 'Hi' }, [children]).
+   * `text` sets textContent (never innerHTML, so API text can't inject markup);
+   * null children are skipped, so optional parts can be `cond ? el(...) : null`.
+   * Gotchas learned in Task 1:
+   * - everything else goes through setAttribute, so boolean attributes are ON whenever
+   *   present ({ hidden: false } still hides): set .hidden / .disabled as properties;
+   * - data-* values come back from `dataset` as strings: Number() them before maths.
+   */
+  function el(tag, attrs, children) {
+    const node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === 'text') node.textContent = attrs[k];
+      else if (k === 'class') node.className = attrs[k];
+      else node.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) {
+      if (c) node.appendChild(c);
+    });
+    return node;
   }
 
   /* ---------------------------------------------------------------- PokeAPI (cached) */
@@ -193,6 +202,47 @@
 
   /* ---------------------------------------------------------------- cards */
 
+  /*
+   * Turns one of React's article cards (`card`, an <li class="listing-box">) into a
+   * Pokémon. We never remove or edit React's own children (the CSS hides them); we
+   * append our .gp-card inside the <li>. React replaces the whole <li> when paging, so
+   * our card goes with it and React never trips over our nodes.
+   *
+   * Target markup (pokemon.css is written against this):
+   *
+   * <div class="gp-card" role="button" tabindex="0" aria-pressed="false"
+   *      aria-label="Bulbasaur, number 1. Show details" data-gp-types="grass poison">
+   *   <div class="gp-card__inner">                       (this is what flips)
+   *     <div class="gp-card__face gp-card__front">
+   *       <div class="gp-card__media">
+   *         <img class="gp-card__image" src="…official-artwork…" alt="" width="475" height="475">
+   *       </div>
+   *       <p class="gp-card__number">#0001</p>
+   *       <h2 class="gp-card__name">Bulbasaur</h2>       (h2, like the site's card titles)
+   *       <ul class="gp-card__types">
+   *         <li class="gp-tag gp-tag--grass">Grass</li>  (one per type, in PokeAPI order)
+   *       </ul>
+   *     </div>
+   *     <div class="gp-card__face gp-card__back">
+   *       <h3 class="gp-card__back-title">Bulbasaur</h3>
+   *       <dl class="gp-card__facts">
+   *         <div><dt>Height</dt><dd>0.7 m</dd></div>    (PokeAPI height is in decimetres)
+   *         <div><dt>Weight</dt><dd>6.9 kg</dd></div>   (weight is in hectograms)
+   *         <div><dt>Abilities</dt><dd class="gp-card__abilities">overgrow, chlorophyll</dd></div>
+   *       </dl>
+   *       <ul class="gp-stats">                          (one per p.stats entry)
+   *         <li class="gp-stat" style="--value: 45">     (base_stat; the bar is drawn in CSS)
+   *           <span class="gp-stat__label">HP</span><span class="gp-stat__value">45</span>
+   *         </li>
+   *       </ul>
+   *     </div>
+   *   </div>
+   * </div>
+   *
+   * data-gp-types: the FIRST type picks the card's accent colour in CSS ([data-gp-types^="fire"]),
+   * and applyTypeFilter() matches on the whole list.
+   * data-gp-cry: the Pokémon's cry (PokeAPI audio URL), played when the card flips to its back.
+   */
   function renderCard(card, index) {
     const id = (currentPage() - 1) * PER_PAGE + index + 1;
     if (card.getAttribute('data-' + NS + '-id') === String(id)) return; // already done
@@ -202,15 +252,93 @@
     getPokemon(id)
       .then(function (p) {
         if (card.getAttribute('data-' + NS + '-id') !== String(id)) return; // card reused meanwhile
-        // TODO: build flip card (front: image, #id, name, type tags; back: stats/height/weight/abilities)
-        // append it inside `card` as .gp-card, set data-gp-types="fire flying"
-        void p;
-        card.setAttribute('data-' + NS + '-ready', '');
+        const { name, id: pokemonId, types, stats, abilities, cries, sprites, height, weight } = p;
+        const pokemonNumber = String(pokemonId).padStart(4, '0'); // 1 → "0001"
+        const pokemonName = name.charAt(0).toUpperCase() + name.slice(1); // API names are lowercase
+        // Official artwork is large and smooth; the plain sprite (96px pixel art) is the fallback
+        const image = sprites.other['official-artwork'].front_default || sprites.front_default || '';
+
+        const cardFront = el('div', { class: NS + '-card__face ' + NS + '-card__front' }, [
+          el('div', { class: NS + '-card__media' }, [
+            // alt="": the name is right below (and in the card's aria-label), so it isn't read twice.
+            // width/height: the browser reserves the space before it loads, so cards don't jump.
+            el('img', { class: NS + '-card__image', src: image, alt: '', width: '475', height: '475' })
+          ]),
+          el('p', { class: NS + '-card__number', text: '#' + pokemonNumber }),
+          el('h2', { class: NS + '-card__name', text: pokemonName }),
+          el(
+            'ul',
+            { class: NS + '-card__types' },
+            types.map((t) => el('li', { class: NS + '-tag ' + NS + '-tag--' + t.type.name, text: t.type.name }))
+          )
+        ]);
+
+        const cardBack = el('div', { class: NS + '-card__face ' + NS + '-card__back' }, [
+          el('h3', { class: NS + '-card__back-title', text: pokemonName }),
+          el('dl', { class: NS + '-card__facts' }, [
+            el('div', {}, [el('dt', { text: 'Height' }), el('dd', { text: `${height / 10} m` })]),
+            el('div', {}, [el('dt', { text: 'Weight' }), el('dd', { text: `${weight / 10} kg` })]),
+            el('div', {}, [
+              el('dt', { text: 'Abilities' }),
+              el('dd', {
+                class: NS + '-card__abilities',
+                // "swift-swim" → "Swift Swim"
+                text: abilities
+                  .map((a) =>
+                    a.ability.name
+                      .split('-')
+                      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                      .join(' ')
+                  )
+                  .join(', ')
+              })
+            ])
+          ]),
+          el(
+            'ul',
+            { class: NS + '-stats' },
+            stats.map((s) =>
+              // --value drives the bar's width in CSS (out of 255, the highest base stat)
+              el('li', { class: NS + '-stat', style: `--value: ${s.base_stat}` }, [
+                el('span', { class: NS + '-stat__label', text: STAT_LABELS[s.stat.name] || s.stat.name }),
+                el('span', { class: NS + '-stat__value', text: s.base_stat })
+              ])
+            )
+          )
+        ]);
+
+        const attrs = {
+          class: NS + '-card',
+          role: 'button', // announced as something you can press
+          tabindex: '0', // in the normal tab order (a positive number would jump it ahead of the page)
+          'aria-pressed': 'false', // flipped or not (onListClick keeps it in sync)
+          'aria-label': `${pokemonName}, number ${pokemonId}. Show details`,
+          ['data-' + NS + '-types']: types.map((t) => t.type.name).join(' ')
+        };
+        if (cries && cries.latest) attrs['data-' + NS + '-cry'] = cries.latest; // some have no cry
+        const cardContent = el('div', attrs, [el('div', { class: NS + '-card__inner' }, [cardFront, cardBack])]);
+
+        showCard(card, cardContent);
         applyTypeFilter();
       })
       .catch(function (err) {
         console.warn('[' + NS + '] #' + id, err);
+        // A visible error card, not an invisible one (the anti-flash CSS hides a card until it's ready)
+        showCard(card, el('div', { class: NS + '-card ' + NS + '-card--error', text: `Couldn't load Pokémon #${id}` }));
       });
+  }
+
+  /*
+   * Puts our card into React's <li> and reveals it. APPEND, never replaceChildren():
+   * React still holds references to its own children (link, image, title). If they were
+   * removed, React's next update to this <li> could call insertBefore/removeChild on a node
+   * that isn't there any more and throw, breaking paging. The CSS hides React's children.
+   */
+  function showCard(card, content) {
+    const previous = card.querySelector(':scope > .' + NS + '-card'); // only OUR earlier card
+    if (previous) previous.remove();
+    card.appendChild(content);
+    card.setAttribute('data-' + NS + '-ready', '');
   }
 
   function processList() {
@@ -218,8 +346,10 @@
   }
 
   function applyTypeFilter() {
-    // TODO: toggle .gp-hidden on cards whose data-gp-types doesn't include selectedType(),
-    // show/hide the empty message, keep the <select> value in sync.
+    // TODO (PLAN 3.4): toggle .gp-hidden on the <li> cards whose data-gp-types doesn't
+    // include selectedType(); show/hide <p class="gp-empty" data-gain="gp" role="status">
+    // (insert it once, right AFTER FIND.list(), not inside React's <ul>); set .hidden as a
+    // property (el() gotcha); keep the <select>'s value in sync.
   }
 
   /* ---------------------------------------------------------------- filters */
@@ -234,7 +364,7 @@
    */
   function setupFilters() {
     // TODO (PLAN 3.4): if FIND.dropdowns() has no .gp-type-filter, append
-    // <select class="gp-type-filter" aria-label="Filter by type"> with a placeholder
+    // <select class="gp-type-filter" data-gain="gp" aria-label="Filter by type"> with a placeholder
     // option "Filter by type" (value "", like the site's) + one option per TYPES entry;
     // set its value to selectedType(); bind change -> setSelectedType.
     void TYPES;
@@ -242,20 +372,44 @@
 
   /* ---------------------------------------------------------------- interactions */
 
+  /*
+   * Plays a Pokémon's cry. play() returns a promise that rejects if the browser blocks
+   * audio or the file fails to load; without the catch that's an "Uncaught (in promise)"
+   * error in the console. A missing cry is harmless, so it's ignored.
+   */
+  function playAudio(url) {
+    const audio = new Audio(url);
+    audio.volume = 0.4;
+    audio.play().catch(function () {});
+    return audio;
+  }
+
+  /*
+   * Click on a card: flip it instead of opening the article. Capture phase (see the
+   * listener), so this runs before React's own link handling.
+   * The class is prefixed (gp-card--flipped), not a generic `is-flipped`: in Task 2 an
+   * unprefixed `is-open` picked up a rule from the site's own CSS and turned a tooltip
+   * upside down. aria-pressed tells screen readers the card is showing its details.
+   * Flipping to the back also plays the Pokémon's cry.
+   * TODO (PLAN 3.3): also flip on Enter/Space when the card has focus (keydown).
+   */
   function onListClick(e) {
     const card = e.target.closest('.' + NS + '-card');
-    if (!card) return;
-    // Block navigation to the article and flip instead.
+    if (!card || card.classList.contains(NS + '-card--error')) return;
     e.preventDefault();
     e.stopPropagation();
-    card.classList.toggle('is-flipped');
+    const flipped = card.classList.toggle(NS + '-card--flipped');
+    card.setAttribute('aria-pressed', String(flipped));
+    const cry = card.getAttribute('data-' + NS + '-cry');
+    if (cry && flipped) playAudio(cry);
   }
 
   /* ---------------------------------------------------------------- SPA watching */
 
   function hookHistory() {
     // React Router-style navigation fires pushState/replaceState, not a load event.
-    // TODO: wrap history.pushState/replaceState to dispatch a custom event; restore originals in destroy().
+    // TODO (PLAN 3.5): wrap history.pushState/replaceState to dispatch a custom event;
+    // restore the originals in destroy().
     on(window, 'popstate', processList);
   }
 
@@ -288,12 +442,20 @@
     document.querySelectorAll('[data-' + NS + '-id]').forEach(function (n) {
       n.removeAttribute('data-' + NS + '-id');
       n.removeAttribute('data-' + NS + '-ready');
+      n.classList.remove(NS + '-hidden');
     });
-    // TODO: restore history methods and original filter dropdown
+    // TODO (PLAN 3.5): restore the original history.pushState / replaceState
+    // (React's own <select>s need nothing: the CSS hides them, we never touched them)
     delete window[INSTANCE_KEY];
   }
 
-  window[INSTANCE_KEY] = { destroy: destroy };
+  // The one global: lets a re-run destroy this instance; handy in the console
+  // (__gainPokemon.cache[1], __gainPokemon.currentPage()).
+  window[INSTANCE_KEY] = {
+    destroy: destroy,
+    cache: cache,
+    currentPage: currentPage
+  };
 
   waitFor(FIND.root)
     .then(function (root) {
