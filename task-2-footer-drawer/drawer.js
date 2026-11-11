@@ -291,8 +291,11 @@
    *
    * Lenis (learned in Task 1): the site's smooth scroll takes over wheel/trackpad gestures.
    * `data-lenis-prevent-horizontal` on the track hands horizontal swipes back to the
-   * slider, while vertical wheel still scrolls the page. Page scroll is NOT locked while
-   * open: "close when scrolling hits the bottom" needs the page to scroll.
+   * slider. `data-lenis-prevent-vertical` on the panel does the same for vertical wheel:
+   * on short screens the panel scrolls inside itself (CSS max-height), and Lenis would
+   * otherwise scroll the page instead. When the panel can't scroll, the browser passes
+   * the wheel on to the page natively, which still fires `scroll` for the bottom check.
+   * Page scroll is NOT locked while open: "close when scrolling hits the bottom" needs it.
    */
   function build() {
     const overlay = el('div', { class: NS + '-overlay', 'data-gain': NS, 'aria-hidden': 'true' });
@@ -318,7 +321,7 @@
         return buildSlide(cs, data.descriptions);
       })
     );
-    const panel = el('div', { class: NS + '-panel', id: NS + '-panel' }, [track]);
+    const panel = el('div', { class: NS + '-panel', id: NS + '-panel', 'data-lenis-prevent-vertical': '' }, [track]);
 
     const drawer = el('aside', { class: NS + '-drawer', 'data-gain': NS, 'aria-label': 'Our work' }, [
       el('div', { class: NS + '-tab' }, [toggle, el('div', { class: NS + '-tab__nav' }, [prev, counter, next])]),
@@ -363,7 +366,7 @@
   /*
    * The tooltip itself is CSS (drawer.css). Hover and keyboard focus need no JS; this is
    * for touch, which has no hover, and for Safari, which doesn't focus a button on tap.
-   * Tapping a tag adds .is-open, which the CSS shows like hover. Same pattern as setOpen:
+   * Tapping a tag adds .gd-tag--open, which the CSS shows like hover. Same pattern as setOpen:
    * one variable (openTip) and one function that changes it.
    * Closed by: tapping it again, tapping anywhere else, Esc, scrolling the slider, or
    * closing the drawer.
@@ -371,9 +374,9 @@
   let openTip = null; // the tag whose tooltip is showing, or null
 
   function setTip(tag) {
-    if (openTip) openTip.classList.remove('is-open');
+    if (openTip) openTip.classList.remove(NS + '-tag--open');
     openTip = tag;
-    if (tag) tag.classList.add('is-open');
+    if (tag) tag.classList.add(NS + '-tag--open');
   }
 
   // One listener on document handles both "tap a tag" and "tap anywhere else".
@@ -469,7 +472,7 @@
    *     starts its own drag-and-drop (a ghost image) and cancels our pointer events.
    *  3. Letting go over a link would open it: after a real drag, the next click is
    *     cancelled in the capture phase, before the link sees it.
-   *  4. Scroll-snap fights the mouse, so .is-dragging turns it off (CSS). On release we
+   *  4. Scroll-snap fights the mouse, so .gd-track--dragging turns it off (CSS). On release we
    *     smooth-scroll to the nearest slide, and only turn snapping back on once that has
    *     finished; re-enabling it straight away makes the browser jump to a snap point.
    * The pointer is captured only once dragging starts: capturing on pointerdown would
@@ -509,7 +512,7 @@
         if (Math.abs(dx) < DRAG_START) return; // gotcha 1: still a click
         drag.moving = true;
         clearTimeout(settleTimer); // a new drag right after the last one keeps snapping off
-        track.classList.add('is-dragging'); // gotcha 4: snapping off
+        track.classList.add(NS + '-track--dragging'); // gotcha 4: snapping off
         track.setPointerCapture(e.pointerId); // keep getting moves even outside the track
       }
       track.scrollLeft = drag.startScroll - dx;
@@ -536,7 +539,7 @@
         behavior: reduce ? 'auto' : 'smooth'
       });
       settleTimer = setTimeout(function () {
-        track.classList.remove('is-dragging');
+        track.classList.remove(NS + '-track--dragging');
       }, 400); // a little longer than a smooth scroll of under one slide
     }
     on(track, 'pointerup', endDrag);

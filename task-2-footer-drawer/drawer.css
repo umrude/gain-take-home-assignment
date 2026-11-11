@@ -25,7 +25,9 @@
   --gd-tooltip-bg: var(--gd-ink); /* Figure 5's bubble + arrow shape, in GAIN colours */
   --gd-tooltip-fg: var(--gd-surface);
   --gd-gap: 16px;
+  --gd-track-pad: 16px; /* space around the slides; scroll-padding must equal it */
   --gd-slide-pad: 16px; /* slide body padding; the tooltip's max-width depends on it */
+  --gd-cookie-clearance: 48px; /* phones: empty space under the cards for Cookiebot's button */
   --gd-per-page: 1; /* slides visible per page; bumped at breakpoints, read by JS */
   --gd-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
@@ -185,6 +187,13 @@ html.gd-open .gd-tab__nav {
 
 .gd-panel {
   width: 100%;
+  /* Safety net for short screens (landscape phones): the panel never gets taller than
+     the screen minus the tab; anything extra scrolls inside it. dvh = the visible
+     height, which on phones changes as the address bar shows/hides. */
+  max-height: calc(100dvh - 64px);
+  overflow-y: auto;
+  /* iPhone home bar: keep the cards above it (0 on devices without one) */
+  padding-bottom: env(safe-area-inset-bottom);
   background: var(--gd-panel-bg);
   transition: box-shadow 0.4s;
   color: var(--gd-ink);
@@ -214,41 +223,98 @@ html.gd-open .gd-panel {
   overscroll-behavior-x: contain; /* a swipe at the end doesn't trigger browser back */
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  padding: 16px;
+  padding: var(--gd-track-pad);
   /* Snap to the padding edge, not the scroller edge: without this the first slide snaps
      flush against the panel (scrollLeft 16) and the snap points drift from n × slideStep */
-  scroll-padding-inline: 16px;
+  scroll-padding-inline: var(--gd-track-pad);
 }
 .gd-track::-webkit-scrollbar {
   display: none;
 }
-.gd-track.is-dragging {
+.gd-track--dragging {
   scroll-snap-type: none;
   cursor: grabbing;
   user-select: none;
 }
+/*
+ * Slide = Figure 4's card, with the case study image on top:
+ *   image → tag (tooltip) → title → description → pill button (pinned to the bottom)
+ * Equal heights: grid rows stretch every slide to the tallest one; the body fills the
+ * card (flex: 1) and the button's margin-top: auto pushes it down, so buttons line up.
+ * No overflow: hidden for the rounded corners (the image rounds its own top corners):
+ * it would silently clip the tooltip if that ever grew past the slide.
+ */
 .gd-slide {
   scroll-snap-align: start;
   display: flex;
   flex-direction: column;
+  border: 1px solid transparent; /* becomes visible on hover; transparent keeps sizes equal */
+  border-radius: var(--gd-radius);
+  background: var(--gd-card);
+  transition:
+    transform 0.25s var(--gd-ease),
+    box-shadow 0.25s,
+    border-color 0.25s;
   /* A size container, so the tooltip inside can size itself to the SLIDE (100cqi)
      rather than to the small tag it belongs to. */
   container-type: inline-size;
 }
-/* Fixed shape: the tooltip opens over the image, so the image's height is what
-   guarantees it room. (The rest of the slide styling is PLAN 2.7.) */
+/* Fixed shape (16:9, as in Task 1): the tooltip opens over the image, so the image's
+   height is what guarantees it room. max-height keeps short screens usable. */
 .gd-slide__image {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 9;
+  max-height: 30vh;
   object-fit: cover;
+  border-radius: calc(var(--gd-radius) - 1px) calc(var(--gd-radius) - 1px) 0 0; /* inside the 1px border */
+  background: #e4e9e4; /* placeholder colour while the image loads */
 }
 .gd-slide__body {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
   padding: var(--gd-slide-pad);
+}
+.gd-slide__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.gd-slide__description {
+  margin: 0;
+  color: var(--gd-muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+/* Button: a GAIN pill, like Task 1's Back button; ↗ like the site's arrow links */
+.gd-slide__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px; /* touch target */
+  margin-top: auto; /* pinned to the bottom of the card */
+  padding: 0 20px;
+  border: 1px solid var(--gd-ink);
+  border-radius: 999px;
+  color: var(--gd-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.gd-slide__link::after {
+  content: '\00a0\2197'; /* non-breaking space + ↗ */
+}
+.gd-slide__link:focus-visible {
+  outline: 2px solid var(--gd-ink);
+  outline-offset: 2px;
 }
 
 /* ---------------------------------------------------------------- tag + tooltip (Figure 5) */
@@ -265,7 +331,7 @@ html.gd-open .gd-panel {
  * - it opens upward over the image, which always has room (fixed 16:10 above);
  *   a slide without an image flips it below the tag instead (:has rule at the end).
  *
- * Shown on: mouse hover (hover block), keyboard focus (:focus-visible), and .is-open,
+ * Shown on: mouse hover (hover block), keyboard focus (:focus-visible), and .gd-tag--open,
  * which drawer.js toggles on tap, because touch has no hover and Safari doesn't focus a
  * button when it's tapped.
  */
@@ -310,6 +376,10 @@ html.gd-open .gd-panel {
   text-align: left;
   text-transform: none;
   white-space: normal;
+  /* Backstop against the site's CSS: when the open class was an unprefixed `is-open`,
+     a site rule (likely `.is-open::after { rotate 180° }` for its menu chevrons) turned
+     this bubble upside down on tap. The class is prefixed now; this keeps it upright anyway. */
+  transform: none;
 }
 /* Arrow: a 0×0 box with 6px borders; only the top border is coloured, which draws a
    downward triangle. Centred on the tag (translateX), touching the bubble's bottom. */
@@ -324,8 +394,8 @@ html.gd-open .gd-panel {
 /* Shown */
 .gd-tag:focus-visible::after,
 .gd-tag:focus-visible::before,
-.gd-tag.is-open::after,
-.gd-tag.is-open::before {
+.gd-tag--open::after,
+.gd-tag--open::before {
   opacity: 1;
   translate: 0 0;
 }
@@ -364,11 +434,37 @@ html.gd-open .gd-panel {
     opacity: 1;
     translate: 0 0;
   }
-  /* TODO (PLAN 2.7): slide lift */
+  /* Slide lift, like Task 1's result cards. A small shadow: the track scrolls, so it
+     clips anything (shadows included) that reaches past its padding. */
+  .gd-slide:hover {
+    transform: translateY(-3px);
+    border-color: var(--gd-ink);
+    box-shadow: 0 6px 14px rgba(0, 20, 0, 0.1);
+  }
+  .gd-track--dragging .gd-slide:hover {
+    transform: none; /* no lift under a dragging mouse */
+  }
+  .gd-slide__link:hover {
+    background: var(--gd-ink);
+    color: var(--gd-growth);
+  }
 }
 
 /* ---------------------------------------------------------------- breakpoints */
 /* Brief: at least 4 slides on desktop, 2 on tablet, 1 on mobile. */
+
+/*
+ * Phones: Cookiebot's round button sits bottom-left ABOVE the drawer (on purpose, so
+ * consent withdrawal stays reachable; see the z-index note at the top). Extra bottom
+ * padding leaves it empty space to sit in, instead of covering "View case study".
+ * (Tablet/desktop: the site floats the button ~130px up, over the first card's text, where
+ * padding can't help. Accepted and documented in the README; we don't move their widget.)
+ */
+@media (max-width: 767px) {
+  .gd-track {
+    padding-bottom: calc(var(--gd-track-pad) + var(--gd-cookie-clearance));
+  }
+}
 
 @media (min-width: 768px) {
   :root {
@@ -378,6 +474,10 @@ html.gd-open .gd-panel {
 @media (min-width: 1024px) {
   :root {
     --gd-per-page: 4;
+    /* Keep gap >= track padding: the next slide starts one gap after the last visible
+       one, so a smaller gap lets a sliver of it show in the padding (a "peek"). */
+    --gd-track-pad: 24px;
+    --gd-gap: 24px;
   }
 }
 
@@ -388,7 +488,9 @@ html.gd-open .gd-panel {
   .gd-tab__arrow,
   .gd-chevron,
   .gd-tag::after,
-  .gd-tag::before {
+  .gd-tag::before,
+  .gd-slide,
+  .gd-slide__link {
     transition: none;
   }
 }

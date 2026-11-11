@@ -60,7 +60,7 @@ Each task has two files:
     `__gainQuestionnaire.computeResults({ services: ['Experience'], industries: ['Retail'], useful: 'cases', timing: 'now' }, __gainQuestionnaire.data)`
 - **Overlays and the cookie button:** the site manages consent with Cookiebot, which has a floating button at the bottom left. Consent withdrawal must stay easy to reach (UK/EU GDPR Art. 7(3)), so the two kinds of overlay are treated differently:
   - **The questionnaire modal covers the button.** It's a temporary overlay that the user opened and can dismiss (×, Esc, or a click outside). A modal should sit above the whole page, and the button is back as soon as the modal closes. Without this, the widget sat on top of the modal's Back button on mobile.
-  - **The sticky drawer (Task 2) doesn't cover it.** The drawer stays on screen all the time, so it sits below Cookiebot's widget and leaves the button reachable. The site also has a "Cookies" link in the footer.
+  - **The sticky drawer (Task 2) doesn't cover it.** The drawer stays on screen all the time, so it sits below Cookiebot's widget and leaves the button reachable. On phones, where the button sits at the bottom left, the drawer leaves empty space under the cards for it, so it doesn't cover "View case study". On tablet and desktop the site floats it higher (about 130px up), where it covers the first few letters of the first card's description. That's accepted on purpose: it floats over the site's own content the same way, and GAIN's consent widget isn't ours to move or restyle. The site also has a "Cookies" link in the footer.
   - **The first-visit consent banner is never blocked.** The modal only opens when the user clicks Start.
 
   On a real client site, I'd check this with whoever owns the consent setup.
@@ -69,7 +69,7 @@ Each task has two files:
 - **The drawer's tooltip (Figure 5) when space is tight:** the slider scrolls sideways, so it cuts off anything that sticks out of it, and a bubble centred over the tag (as in Figure 5) would be clipped on the first slide. Instead:
   - The bubble is left-aligned to the tag, which always sits at the slide's left edge, and its arrow is centred on the tag.
   - Its width is capped to the slide with container query units (`100cqi`), so long text wraps inside the slide rather than overflowing. No JS measuring.
-  - It opens upward over the image, which has a fixed 16:10 shape, so there's always room. A slide without an image flips it below the tag (`:has()`).
+  - It opens upward over the image, which has a fixed 16:9 shape, so there's always room. A slide without an image flips it below the tag (`:has()`).
   - Touch has no hover, and Safari doesn't focus a button when it's tapped, so tapping the tag toggles the tooltip. Tapping elsewhere, Esc, scrolling the slider or closing the drawer hides it. Mouse hover and keyboard focus are CSS-only.
 - **The pixel button (Figure 1)** is drawn with a single `box-shadow` list:
   - four outer shadows, each offset by one pixel, draw the dark outline with stepped corners
@@ -111,20 +111,20 @@ Each task has two files:
 
 ### 2. Footer Drawer (https://www.thisisgain.com/)
 
-- [ ] Uses Flex or Grid CSS
-- [ ] Works on desktop, tablet and mobile (down to 375px)
-- [ ] Sticky drawer at the bottom of the page
-- [ ] Tab toggles the drawer on/off
-- [ ] Chevron rotates 180 degrees on toggle
-- [ ] Drawer slides in and out from the bottom
-- [ ] Page count and arrow buttons when the drawer is open
-- [ ] Overlay on the page, and clicking it closes the drawer
-- [ ] Drawer closes automatically at the bottom of the page
-- [ ] One slide per case study, read from the "Work" slider (nothing hardcoded or fetched)
-- [ ] Each slide has an image, header, industry tag with tooltip, service description and link
-- [ ] Slider is draggable and swipeable on smaller viewports
-- [ ] Tooltip matches Figure 5 and handles small screens or tight space
-- [ ] 4+ slides on desktop, 2+ on tablet, 1 on mobile
+- [x] Uses Flex or Grid CSS
+- [x] Works on desktop, tablet and mobile (down to 375px)
+- [x] Sticky drawer at the bottom of the page
+- [x] Tab toggles the drawer on/off
+- [x] Chevron rotates 180 degrees on toggle
+- [x] Drawer slides in and out from the bottom
+- [x] Page count and arrow buttons when the drawer is open
+- [x] Overlay on the page, and clicking it closes the drawer
+- [x] Drawer closes automatically at the bottom of the page
+- [x] One slide per case study, read from the "Work" slider (nothing hardcoded or fetched)
+- [x] Each slide has an image, header, industry tag with tooltip, service description and link
+- [x] Slider is draggable and swipeable on smaller viewports
+- [x] Tooltip matches Figure 5 and handles small screens or tight space
+- [x] 4+ slides on desktop, 2+ on tablet, 1 on mobile
 
 ### 3. SPA DOM Manipulation (https://www.thisisgain.com/blog/)
 
