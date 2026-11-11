@@ -358,29 +358,163 @@
     root.panel.inert = !open;
   }
 
+  /* ---------------------------------------------------------------- slider */
   /*
-   * How many slides fit on one page, read from CSS (--gd-per-page) so the breakpoints
-   * live in one place. TODO: Number(getComputedStyle(root.track).getPropertyValue('--gd-per-page'))
+   * The track is a native horizontal scroller with CSS scroll-snap, so touch swipe,
+   * trackpad and keyboard scrolling all work without any JS. The JS below only adds:
+   * the page counter, the ‹ › arrows, and mouse drag (desktop mice can't swipe).
+   *
+   * Pages vs scroll position (10 slides, 4 per page):
+   *   page 1 → slides 1–4, page 2 → slides 5–8, page 3 → the END of the track (7–10).
+   *   The last page can't start at slide 9: there'd be empty space after slide 10,
+   *   and the browser stops scrolling at the end. So "at the end" always means the last page.
+   */
+
+  let page = 1; // current page (1-based), kept in sync by updateCounter()
+  let pages = 1; // total pages
+
+  /*
+   * How many slides fit on one page, read from CSS (--gd-per-page, set per breakpoint),
+   * so the breakpoints live only in the stylesheet. Custom properties come back as
+   * strings with spaces (" 4"), hence trim + Number. Falls back to 1 if missing.
    */
   function slidesPerPage() {
-    return 1;
+    return Number(getComputedStyle(root.track).getPropertyValue('--gd-per-page').trim()) || 1;
   }
 
+  /*
+   * Distance from one slide's start to the next: slide width + the grid gap. Uses
+   * getBoundingClientRect (fractional px) rather than offsetWidth (rounded), so the
+   * error doesn't add up over 10 slides.
+   */
+  function slideStep() {
+    const first = root.track.firstElementChild;
+    const gap = parseFloat(getComputedStyle(root.track).columnGap) || 0;
+    return first ? first.getBoundingClientRect().width + gap : 0;
+  }
+
+  /*
+   * Works out the current page from the scroll position, then updates "2/3" and the
+   * arrows. Runs on scroll (once per frame), on resize (slides per page can change),
+   * and once after build.
+   *   first visible slide = round(scrollLeft / slideStep)
+   *   page                = which group of `perPage` it falls in, or the last page at the end
+   *
+   * The arrows use aria-disabled, not `disabled`: a disabled button drops keyboard focus
+   * (pressing › onto the last page would leave focus on <body>). aria-disabled keeps
+   * focus where it is, screen readers still hear "dimmed", and the click handler ignores it.
+   */
   function updateCounter() {
-    // TODO (PLAN 2.4): page = round(scrollLeft / clientWidth) + 1,
-    // total = ceil(slides / slidesPerPage()); disable prev/next at the ends.
+    const track = root.track;
+    const perPage = slidesPerPage();
+    const step = slideStep();
+    const maxScroll = track.scrollWidth - track.clientWidth;
+    const atEnd = track.scrollLeft >= maxScroll - 2; // 2px slack: scrollLeft can be fractional
+    const firstVisible = step ? Math.round(track.scrollLeft / step) : 0;
+
+    pages = Math.max(1, Math.ceil(track.children.length / perPage));
+    page = atEnd ? pages : Math.min(pages, Math.floor(firstVisible / perPage) + 1);
+
+    root.counter.textContent = page + '/' + pages;
+    root.prev.setAttribute('aria-disabled', String(page === 1));
+    root.next.setAttribute('aria-disabled', String(page === pages));
   }
 
-  function scrollByPage(dir) {
-    // TODO (PLAN 2.4): root.track.scrollBy({ left: dir * root.track.clientWidth, behavior: 'smooth' })
-    void dir;
+  /*
+   * Scroll to the start of page n (1-based). The browser clamps past-the-end values to
+   * the end of the track, which is exactly the last page. Smooth unless the user asked
+   * for reduced motion (`behavior: 'smooth'` in JS ignores the CSS media query).
+   */
+  function goToPage(n) {
+    const target = Math.min(Math.max(n, 1), pages);
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    root.track.scrollTo({
+      left: (target - 1) * slidesPerPage() * slideStep(),
+      behavior: reduce ? 'auto' : 'smooth'
+    });
   }
 
+  /*
+   * Mouse drag. Touch and trackpads already scroll the track natively, so this only
+   * handles pointerType 'mouse'. The scroll itself is one line (scrollLeft = start - dx);
+   * the rest handles four gotchas:
+   *  1. A click must stay a click: dragging only starts after 5px of movement (DRAG_START).
+   *  2. Links and images are natively draggable: without blocking `dragstart`, the browser
+   *     starts its own drag-and-drop (a ghost image) and cancels our pointer events.
+   *  3. Letting go over a link would open it: after a real drag, the next click is
+   *     cancelled in the capture phase, before the link sees it.
+   *  4. Scroll-snap fights the mouse, so .is-dragging turns it off (CSS). On release we
+   *     smooth-scroll to the nearest slide, and only turn snapping back on once that has
+   *     finished; re-enabling it straight away makes the browser jump to a snap point.
+   * The pointer is captured only once dragging starts: capturing on pointerdown would
+   * send a plain click to the track instead of the link under the mouse.
+   */
   function enableDrag(track) {
-    // TODO (PLAN 2.4): pointerdown/move/up for mouse only (touch already swipes natively);
-    // add .is-dragging (turns off scroll-snap) while dragging; swallow the click after a drag
-    // so dragging across a link doesn't open it.
-    void track;
+    const DRAG_START = 5; // px
+    let drag = null; // { id, startX, startScroll, moving } while the mouse button is down
+    let suppressClick = false; // true for the instant between a drag's release and its click
+    let settleTimer = null; // turns snapping back on after the release scroll
+
+    on(track, 'dragstart', function (e) {
+      e.preventDefault(); // gotcha 2
+    });
+
+    // gotcha 3: capture phase runs on the track BEFORE the link's own handling
+    on(
+      track,
+      'click',
+      function (e) {
+        if (!suppressClick) return;
+        e.preventDefault();
+        e.stopPropagation();
+      },
+      { capture: true }
+    );
+
+    on(track, 'pointerdown', function (e) {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      drag = { id: e.pointerId, startX: e.clientX, startScroll: track.scrollLeft, moving: false };
+    });
+
+    on(track, 'pointermove', function (e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      const dx = e.clientX - drag.startX;
+      if (!drag.moving) {
+        if (Math.abs(dx) < DRAG_START) return; // gotcha 1: still a click
+        drag.moving = true;
+        clearTimeout(settleTimer); // a new drag right after the last one keeps snapping off
+        track.classList.add('is-dragging'); // gotcha 4: snapping off
+        track.setPointerCapture(e.pointerId); // keep getting moves even outside the track
+      }
+      track.scrollLeft = drag.startScroll - dx;
+    });
+
+    function endDrag(e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      const moved = drag.moving;
+      drag = null;
+      if (!moved) return; // it was a click: let it through
+
+      // gotcha 3: the click (if any) fires right after pointerup, in the same task, so
+      // the flag is reset on the next tick — a later, real click works normally.
+      suppressClick = true;
+      setTimeout(function () {
+        suppressClick = false;
+      }, 0);
+
+      // gotcha 4: settle on the nearest slide, then turn snapping back on
+      const step = slideStep();
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      track.scrollTo({
+        left: step ? Math.round(track.scrollLeft / step) * step : 0,
+        behavior: reduce ? 'auto' : 'smooth'
+      });
+      settleTimer = setTimeout(function () {
+        track.classList.remove('is-dragging');
+      }, 400); // a little longer than a smooth scroll of under one slide
+    }
+    on(track, 'pointerup', endDrag);
+    on(track, 'pointercancel', endDrag);
   }
 
   /*
@@ -442,12 +576,33 @@
         if (e.key === 'Escape' && isOpen) setOpen(false);
       });
 
-      // TODO (PLAN 2.4): prev/next, track scroll -> updateCounter, enableDrag(root.track)
+      // Slider: arrows → goToPage; any scroll (arrows, drag, swipe, trackpad) → counter
+      on(root.prev, 'click', function () {
+        if (root.prev.getAttribute('aria-disabled') !== 'true') goToPage(page - 1);
+      });
+      on(root.next, 'click', function () {
+        if (root.next.getAttribute('aria-disabled') !== 'true') goToPage(page + 1);
+      });
+      // scroll can fire 100+ times a second; update at most once per frame
+      let counterQueued = false;
+      on(
+        root.track,
+        'scroll',
+        function () {
+          if (counterQueued) return;
+          counterQueued = true;
+          requestAnimationFrame(function () {
+            counterQueued = false;
+            updateCounter();
+          });
+        },
+        { passive: true }
+      );
+      on(window, 'resize', updateCounter); // a breakpoint change changes slides per page
+      enableDrag(root.track);
+      updateCounter();
+
       on(window, 'scroll', closeAtPageBottom, { passive: true });
-      on(window, 'resize', updateCounter);
-      void scrollByPage;
-      void enableDrag;
-      void slidesPerPage;
     })
     .catch(function (err) {
       console.warn('[' + NS + ']', err);

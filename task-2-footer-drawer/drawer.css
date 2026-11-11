@@ -163,7 +163,8 @@ html.gd-open .gd-tab__nav {
   line-height: 1;
   transition: background-color 0.2s;
 }
-.gd-tab__arrow:disabled {
+/* aria-disabled, not :disabled — see updateCounter() in drawer.js */
+.gd-tab__arrow[aria-disabled='true'] {
   opacity: 0.35;
   cursor: default;
 }
@@ -213,6 +214,9 @@ html.gd-open .gd-panel {
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   padding: 16px;
+  /* Snap to the padding edge, not the scroller edge: without this the first slide snaps
+     flush against the panel (scrollLeft 16) and the snap points drift from n × slideStep */
+  scroll-padding-inline: 16px;
 }
 .gd-track::-webkit-scrollbar {
   display: none;
@@ -241,8 +245,11 @@ html.gd-open .gd-panel {
     background: var(--gd-ink); /* like the site's green buttons: dark on hover */
     color: var(--gd-growth);
   }
-  .gd-tab__arrow:not(:disabled):hover {
+  .gd-tab__arrow:not([aria-disabled='true']):hover {
     background: var(--gd-growth-soft);
+  }
+  .gd-track {
+    cursor: grab; /* hints that a mouse can drag it (enableDrag in drawer.js) */
   }
   /* TODO (PLAN 2.7): slide lift */
 }
