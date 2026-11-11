@@ -2,3 +2,7 @@ PLAN.md
 **/.vscode
 CLAUDE.md
 docs/
+node_modules/
+tests/.cache/
+test-results/
+playwright-report/

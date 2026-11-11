@@ -1,0 +1,14 @@
+{
+  "name": "gain-take-home",
+  "private": true,
+  "description": "Dev-only tooling for the GAIN take-home. The task files themselves have no dependencies and no build step.",
+  "scripts": {
+    "test": "playwright test",
+    "test:record": "node tests/record.js",
+    "test:update-screenshots": "playwright test --update-snapshots"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "pngjs": "^7.0.0"
+  }
+}

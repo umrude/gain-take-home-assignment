@@ -22,12 +22,13 @@ Each task has two files:
 ### Development setup
 
 - **[tampermonkey/](tampermonkey/README.md):** a userscript that loads each task's CSS and JS from this repo at `document-start`, the way an A/B testing tool would. Edit a file, reload the page, and the change is live. It's also how the "runs before the page has loaded" bonus is tested.
+- **[tests/](tests/):** the automated requirement tests (Playwright). See [How I tested](#how-i-tested).
 - **Prettier** ([.prettierrc.json](.prettierrc.json)) formats the code on save. The config matches the code style: single quotes, semicolons, no trailing commas.
 
 ## Design notes
 
 - **Safe to re-run:** every script stores its instance on `window` (for example `window.__gainQuestionnaire`). When it runs again, it calls the previous instance's `destroy()` first. That removes the elements it added, its listeners (through one `AbortController`) and its observers, then the script builds everything again. Running it twice gives the same result as running it once.
-- **Works before the page has loaded (bonus):** `waitFor(finder)` takes a selector or a function. It uses a `MutationObserver` on `document.documentElement` and checks again at most once per frame, so the scripts can run at `document-start`. The script starts only once everything it reads from the page is there.
+- **Works before the page has loaded (bonus):** `waitFor(finder)` takes a selector or a function. It uses a `MutationObserver` on `document` itself, which exists even before `<html>` does, and checks again at most once per frame, so the scripts can run at `document-start`. The script starts only once everything it reads from the page is there.
 - **Standalone files:** each JS file contains the small helpers it needs, so you can paste it on its own with nothing else.
 - **Finding elements without IDs:** the site's sections are generic `wp-block-group` wrappers with no IDs. Instead of selectors that would break easily, a `FIND` object at the top of each file has one small function per part of the page. Each function anchors on something stable, then searches inside it:
   - the `<h1>`, for the hero
@@ -76,6 +77,36 @@ Each task has two files:
   - two inset shadows draw the top strip and the bottom shadow
 
   Each state only swaps five custom properties (`--bg`, `--strip`, `--shade`, `--edge`, `--fg`).
+
+## How I tested
+
+Tasks 1 and 2 are covered by **77 automated browser tests** ([tests/](tests/)), written against the brief rather than against my code. Task 3's tests will come with Task 3.
+
+```bash
+npm install
+npx playwright install chromium   # once
+npm test
+```
+
+This is dev tooling only: the task files still have no dependencies and no build step.
+
+- **Offline copy of the live site.** The first run records the homepage once ([tests/record.js](tests/record.js)) at 375, 768 and 1440px, and answers the cookie banner. Every test then replays that recording. Runs are fast and give the same result each time, and they don't touch GAIN's rate limits. The site's own CSS and JS still run (Lenis, Cookiebot, lazy rendering, the email decoder), so the tests see the real page. The recording is a copy of GAIN's site, so it's gitignored rather than committed. `npm run test:record` refreshes it.
+- **Injected the way the brief says.** The CSS goes into `<head>` as a `<style>`. The JS runs as a plain script, the same as pasting it into the console. The document-start bonus test is harsher than Tampermonkey: it runs the scripts before `<html>` even exists.
+- **Independent expectations.** The tests read the homepage themselves (the Solutions menu, Our Sectors, the Work and Insights sliders, the footer email). Expected results come from the brief's rules, never from the scripts' own logic. Two tests **edit the homepage before the scripts run**: they rename a service, add a sector, retitle a case study and change the email. They then check that the questionnaire and the drawer follow the edits, which hardcoded values wouldn't.
+- **Visual details checked on real pixels.** For Figure 1, the tests sample the rendered button in each state. They check for the lighter top strip, the darker bottom shadow, the dark outline, the notched corners and the square blue focus ring, and that Pressed has no strip or shadow. Animations are checked mid-way, so the chevron must be part-turned and the drawer part-way up 120ms after a click. Screenshot baselines of the button states, the progress bar, the closed tab and the tooltip were approved by eye. Any later change fails the test. On another OS, with different font rendering, they're created on the first run.
+- **Every requirement is named.** Each test title quotes the requirement it checks and is tagged `[README]` (a checklist item), `[PDF]` (in the brief but not the checklist), `[Bonus]` or `[Extra]` (beyond the brief). Every Task 1 and Task 2 checklist item has at least one test named after it. `npx playwright test --list` prints the full map. The `[PDF]` ones:
+  - the JS pastes into the console as is (a classic script, no modules), and the CSS is separate and goes into `<head>`;
+  - nothing is fetched (a spy on `fetch` and XHR, traced to our scripts);
+  - the section sits directly under the hero, and the button is one button with five states;
+  - questions 3 and 4 use the brief's exact wording, and the email comes from the footer;
+  - the drawer is fixed to the bottom while scrolling, with only the centred tab showing when hidden (Figure 3);
+  - the slide description comes from the Solutions menu.
+- **The tests can fail.** I checked this by breaking three things on purpose: Pressed keeping its top strip, the chevron losing its animation, and the results showing 4 case studies. Each was caught by the test named after that requirement.
+
+What the suite found, beyond what I'd checked by hand:
+
+- **Scrolling over the open drawer didn't work.** The site's Lenis CSS gives every element that opts out of Lenis `overscroll-behavior: contain`. With the mouse over the drawer, nothing scrolled, so the page could never reach the bottom and the drawer never auto-closed. The panel now opts out only when it actually needs to scroll (short screens), and the track undoes `contain` vertically.
+- **`waitFor` failed if run before `<html>` existed.** It now observes `document` itself.
 
 ## Notes / issues encountered
 
