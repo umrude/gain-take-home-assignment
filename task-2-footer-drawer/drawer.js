@@ -284,7 +284,7 @@
    *   .gd-overlay
    *   aside.gd-drawer
    *     .gd-tab                (absolutely positioned on top of the panel, see the CSS)
-   *       button.gd-tab__toggle     "Our work" + chevron
+   *       button.gd-tab__toggle     "Our work" ("Work" on phones) + chevron
    *       .gd-tab__nav              ‹  1/3  ›   (only visible while open)
    *     .gd-panel#gd-panel
    *       .gd-track                 the slides
@@ -302,7 +302,13 @@
       'button',
       { class: NS + '-tab__toggle', type: 'button', 'aria-expanded': 'false', 'aria-controls': NS + '-panel' },
       [
-        el('span', { class: NS + '-tab__label', text: 'Our work' }),
+        // "Our " is its own span so phones can shorten the label to "Work" (drawer.css: the tab
+        // moves to the corner there, next to the site's "Let's Talk"). Hidden visually only,
+        // so screen readers still hear "Our work".
+        el('span', { class: NS + '-tab__label' }, [
+          el('span', { class: NS + '-tab__label-our', text: 'Our ' }),
+          document.createTextNode('work')
+        ]),
         el('span', { class: NS + '-chevron', 'aria-hidden': 'true' })
       ]
     );

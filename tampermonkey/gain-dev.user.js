@@ -19,9 +19,9 @@
  * Setup: see tampermonkey/README.md.
  *
  * Why inject a <script> tag instead of using @require?
- * Userscripts with @grant run in a sandbox with their own `window`. Task 3 wraps
- * history.pushState and every task stores its instance on `window`, so the code has
- * to run in the page's own context — exactly like pasting it into the console.
+ * Userscripts with @grant run in a sandbox with their own `window`. Every task stores its
+ * instance on the page's `window` (so a re-run, injected or pasted, finds and destroys it),
+ * so the code has to run in the page's own context, exactly like pasting it into the console.
  */
 (function () {
   'use strict';

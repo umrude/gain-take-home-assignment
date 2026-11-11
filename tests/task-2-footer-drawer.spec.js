@@ -133,7 +133,9 @@ test('[README] Tab toggles the drawer on/off', async ({ page }) => {
   expect((await rect(page, '.gd-panel')).top).toBeGreaterThanOrEqual(vh - 1);
 });
 
-test('[PDF] Figure 3: when hidden, only the tab shows, centred at the bottom', async ({ page }) => {
+test('[PDF] Figure 3: when hidden, only the tab shows, centred at the bottom (desktop; phones: see "Let\'s Talk" below)', async ({
+  page
+}) => {
   const { width, height } = viewport(page);
   const tab = await rect(page, '.gd-tab');
   expect(tab.left + tab.width / 2).toBeCloseTo(width / 2, 0);
@@ -584,4 +586,63 @@ test("[Extra] Cookiebot's button stays clickable above the open drawer", async (
     y: b.y + b.height / 2
   });
   expect(top).toBe(true);
+});
+
+/*
+ * Below 768px the site has a sticky "LET'S TALK" button centred at the bottom of the screen.
+ * A centred tab covered it, so on phones the tab sits in the bottom-right corner (drawer.css).
+ */
+const STICKY_CTA = '.site-header__sticky-cta button';
+for (const width of [375, 430, 600, 767]) {
+  test.describe(`[Extra] The closed tab never covers the site's "Let's Talk" or Cookiebot buttons: ${width}px`, () => {
+    test.use({ viewport: { width, height: VIEWPORTS.mobile.height } });
+
+    test('the tab sits in the bottom-right corner, and both site buttons stay clickable', async ({ page }) => {
+      await page.evaluate(() => window.scrollTo(0, 900));
+      await expect(page.locator(STICKY_CTA)).toBeVisible();
+      const result = await page.evaluate((ctaSel) => {
+        const box = (e) => (e && e.checkVisibility() ? e.getBoundingClientRect() : null);
+        const overlap = (a, b) =>
+          !!(a && b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom);
+        // Is this element what a tap at its centre would hit?
+        const onTop = (e, r) => !r || e.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+        const tab = box(document.querySelector('.gd-tab'));
+        const cta = document.querySelector(ctaSel);
+        const cookie = document.querySelector('#CookiebotWidget');
+        return {
+          coversCta: overlap(tab, box(cta)),
+          coversCookie: overlap(tab, box(cookie)),
+          ctaOnTop: onTop(cta, box(cta)),
+          cookieOnTop: !cookie || onTop(cookie, box(cookie)),
+          rightGap: innerWidth - tab.right,
+          bottom: tab.bottom
+        };
+      }, STICKY_CTA);
+      expect(result).toMatchObject({ coversCta: false, coversCookie: false, ctaOnTop: true, cookieOnTop: true });
+      expect(result.rightGap).toBeCloseTo(16, 0); // the drawer's 16px side spacing
+      expect(result.bottom).toBeCloseTo(VIEWPORTS.mobile.height, 0); // still on the bottom edge
+      // The visible label is shortened to "Work", but screen readers still hear "Our work"
+      await expect(toggle(page)).toHaveAccessibleName('Our work');
+      await expect(page.locator('.gd-tab__label')).toHaveText('Our work'); // in the DOM
+      expect(await page.locator('.gd-tab__label-our').evaluate((e) => e.getBoundingClientRect().width)).toBeLessThan(2);
+      // ...and it still opens and slides up from the bottom
+      await open(page);
+    });
+  });
+}
+
+test.describe('[PDF] Figure 3 on tablet: from 768px ("Let\'s Talk" moves into the header) the tab is centred', () => {
+  test.use({ viewport: VIEWPORTS.tablet });
+  test('centred at the bottom, with the full "Our work" label', async ({ page }) => {
+    const tab = await rect(page, '.gd-tab');
+    expect(tab.left + tab.width / 2).toBeCloseTo(VIEWPORTS.tablet.width / 2, 0);
+    expect(tab.bottom).toBeCloseTo(VIEWPORTS.tablet.height, 0);
+    expect(await page.locator('.gd-tab__label-our').evaluate((e) => e.getBoundingClientRect().width)).toBeGreaterThan(
+      2
+    );
+    // "Let's Talk" is in the header now (same element), nowhere near the tab
+    await page.evaluate(() => window.scrollTo(0, 900));
+    const cta = await rect(page, STICKY_CTA);
+    expect(cta.bottom).toBeLessThan(VIEWPORTS.tablet.height / 2);
+  });
 });

@@ -477,6 +477,39 @@ html.gd-open .gd-panel {
   }
 }
 
+/*
+ * Phones: the site's sticky "LET'S TALK" button (.site-header__sticky-cta) sits centred at
+ * the bottom of the screen below 768px, exactly where a centred tab would cover it. That's
+ * the site's main contact button, so a variant must never hide it (it would lose contact
+ * clicks for reasons unrelated to the drawer). So on phones the tab moves to the
+ * bottom-RIGHT corner: Cookiebot's button has the left corner, "LET'S TALK" the centre.
+ * It stays attached to the bottom edge, and the drawer still slides up from the bottom
+ * (the brief), so only the tab's position changes. The label shortens to "WORK" to fit
+ * the ~100px left beside the button at 375px; "Our " is hidden visually only, so screen
+ * readers still hear "Our work". Open, the tab stays in the corner (no jump), with the
+ * page nav growing to its left; the panel then covers "LET'S TALK" under the overlay,
+ * which is fine: the user opened it, and closing it brings the button back.
+ * From 768px the site moves "LET'S TALK" into the header, so the tab is centred (Figure 3).
+ */
+@media (max-width: 767px) {
+  .gd-tab {
+    left: auto;
+    right: var(--gd-track-pad);
+    transform: none;
+  }
+  .gd-tab__toggle {
+    padding: 0 16px;
+  }
+  .gd-tab__label-our {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 @media (min-width: 768px) {
   :root {
     --gd-per-page: 2;

@@ -71,6 +71,7 @@ Each task has two files:
 - **Overlays and the cookie button:** the site manages consent with Cookiebot, which has a floating button at the bottom left. Consent withdrawal must stay easy to reach (UK/EU GDPR Art. 7(3)), so the two kinds of overlay are treated differently:
   - **The questionnaire modal covers the button.** It's a temporary overlay that the user opened and can dismiss (×, Esc, or a click outside). A modal should sit above the whole page, and the button is back as soon as the modal closes. Without this, the widget sat on top of the modal's Back button on mobile.
   - **The sticky drawer (Task 2) doesn't cover it.** The drawer stays on screen all the time, so it sits below Cookiebot's widget and leaves the button reachable. On phones, where the button sits at the bottom left, the drawer leaves empty space under the cards for it, so it doesn't cover "View case study". On tablet and desktop the site floats it higher (about 130px up), where it covers the first few letters of the first card's description. That's accepted on purpose: it floats over the site's own content the same way, and GAIN's consent widget isn't ours to move or restyle. The site also has a "Cookies" link in the footer.
+  - **The drawer's tab doesn't cover the site's "Let's Talk" button.** Below 768px, the site has a sticky "Let's Talk" button centred at the bottom of the screen. That's exactly where Figure 3 puts the tab, so a centred tab covered GAIN's main contact button on phones. On phones the closed tab therefore sits in the bottom-right corner instead: Cookiebot's button has the left corner and "Let's Talk" the centre. Its visible label is shortened to "Work" to fit; screen readers still hear "Our work". It's still attached to the bottom edge, and the drawer still slides up from the bottom, so only the tab moves. I didn't make it slide in from the side, because the brief asks for a sticky drawer at the bottom that slides from the bottom. From 768px the site moves "Let's Talk" into the header, so the tab is centred as in Figure 3. While the drawer is open its panel covers "Let's Talk" under the overlay. That's fine: the user opened it, and closing it brings the button back.
   - **The first-visit consent banner is never blocked.** The modal only opens when the user clicks Start.
 
   On a real client site, I'd check this with whoever owns the consent setup.
@@ -87,6 +88,7 @@ Each task has two files:
   - **Never remove or edit the framework's own nodes.** Our Pokémon card is appended inside React's `<li>`, and React's children are only hidden with CSS. Removing them (`replaceChildren`) leaves React holding nodes that aren't in the page, and its next update can throw.
   - **Stop the flicker before the JS runs.** The CSS hides article content and React's dropdowns from the first paint, the same job A/B tools do with "anti-flicker" snippets.
   - **Re-runs and clean-up.** Tools re-run variants, so each script destroys its previous copy (elements, listeners, observers, timers) before building again.
+  - **Never cover the page's own calls to action.** A variant that hides the original's main button (here, the sticky "Let's Talk" on phones) loses its clicks for reasons that have nothing to do with what's being tested, and the result is wrong. Check what's already fixed to the screen at every width before placing anything there.
   - **Work with the site's own scripts, not against them.** Lenis's opt-out CSS swallowed scrolling over the drawer until the opt-out was limited to when it's needed. Cookiebot's button stays above the drawer so consent stays reachable. The WP Rocket lazy rendering is handled by re-measuring before closing.
 - **The pixel button (Figure 1)** is drawn with a single `box-shadow` list:
   - four outer shadows, each offset by one pixel, draw the dark outline with stepped corners
@@ -96,7 +98,7 @@ Each task has two files:
 
 ## How I tested
 
-All three tasks are covered by **105 automated browser tests** ([tests/](tests/)), written against the brief rather than against my code.
+All three tasks are covered by **110 automated browser tests** ([tests/](tests/)), written against the brief rather than against my code.
 
 ```bash
 npm install
@@ -128,13 +130,13 @@ What the suite found, beyond what I'd checked by hand:
 
 ## Notes / issues encountered
 
-- _TODO: note any "Just a moment..." rate limiting from the site here._
+- **Rate limiting:** I didn't run into the "Just a moment..." page at any point. The automated tests replay a one-off recording of the homepage and the blog, so running them doesn't touch the live site at all.
 
 ## Take-home checklist
 
 ### All tasks
 
-- [ ] Safe to run more than once on the same page (no duplicate sections, drawers or cards)
+- [x] Safe to run more than once on the same page (no duplicate sections, drawers or cards)
 
 ### 1. Dynamic Modal: Questionnaire (https://www.thisisgain.com/)
 
@@ -189,5 +191,5 @@ What the suite found, beyond what I'd checked by hand:
 
 ### Bonus
 
-- [ ] [Bonus] Animations where they improve the experience
-- [ ] [Bonus] Works when it runs before the page has finished loading
+- [x] [Bonus] Animations where they improve the experience
+- [x] [Bonus] Works when it runs before the page has finished loading

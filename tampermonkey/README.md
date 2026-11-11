@@ -2,10 +2,10 @@
 
 [gain-dev.user.js](gain-dev.user.js) injects each task's CSS and JS from this folder at `document-start`, the same way an A/B testing tool would. Edit a file, reload the page, and the change is live. There's nothing to paste.
 
-| Page | Tasks injected |
-| --- | --- |
-| `https://www.thisisgain.com/` | 1 (questionnaire) + 2 (drawer) |
-| `https://www.thisisgain.com/blog/` (and `/blog/page/N/`) | 3 (Pokémon) |
+| Page                                                     | Tasks injected                 |
+| -------------------------------------------------------- | ------------------------------ |
+| `https://www.thisisgain.com/`                            | 1 (questionnaire) + 2 (drawer) |
+| `https://www.thisisgain.com/blog/` (and `/blog/page/N/`) | 3 (Pokémon)                    |
 
 ## Setup (once)
 
