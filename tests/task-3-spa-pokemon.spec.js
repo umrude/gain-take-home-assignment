@@ -456,6 +456,45 @@ test('[README] Safe to run more than once on the same page (no duplicate cards o
   expect(await visibleIds(page)).toEqual(idsOnPage(1));
 });
 
+test('[README] Safe to run more than once, even while the Pokémon are still loading', async ({
+  page,
+  gain,
+  pokeapi
+}) => {
+  // A/B tools can run a variant twice in quick succession: the first run's PokeAPI answers
+  // then arrive after it has been destroyed, and must not touch the page
+  pokeapi.delay = 600;
+  await gain.open([]);
+  const { js, css } = source('pokemon');
+  await page.addStyleTag({ content: css });
+  await page.addScriptTag({ content: js }); // first run: its requests are now in flight
+  await page.waitForTimeout(100);
+  await page.addScriptTag({ content: js }); // second run, before any answer is back
+  await pageReady(page, 1);
+  await page.waitForTimeout(800); // every late answer from the first run has arrived
+  expect(
+    await page.evaluate(() => ({
+      cards: document.querySelectorAll('.gp-card').length,
+      filters: document.querySelectorAll('.gp-type-filter').length,
+      messages: document.querySelectorAll('.gp-empty').length
+    }))
+  ).toEqual({ cards: PER_PAGE, filters: 1, messages: 1 });
+  await pickType(page, 'dragon');
+  await expect(emptyMessage(page)).toBeVisible();
+});
+
+test('[Extra] A stored type that is not one of the 18 is ignored (no blank dropdown, no hidden cards)', async ({
+  page,
+  gain
+}) => {
+  await page.addInitScript(() => sessionStorage.setItem('gp-type', 'stellar'));
+  await gain.open(['pokemon']);
+  await pageReady(page, 1);
+  await expect(typeFilter(page)).toHaveValue('');
+  expect(await visibleIds(page)).toEqual(idsOnPage(1));
+  await expect(emptyMessage(page)).toBeHidden();
+});
+
 /* ---------------------------------------------------------------- fetching */
 
 test('[PDF] Task 3 only fetches from PokeAPI, once per Pokémon', async ({ page, gain, pokeapi }) => {

@@ -87,7 +87,7 @@ Each task has two files:
   - **Prefix every class and state.** An unprefixed `is-open` on the drawer's tooltip picked up a rule from the site's CSS and turned the tooltip upside down. Everything is now `gq-`, `gd-` or `gp-`, including state modifiers.
   - **Never remove or edit the framework's own nodes.** Our Pokémon card is appended inside React's `<li>`, and React's children are only hidden with CSS. Removing them (`replaceChildren`) leaves React holding nodes that aren't in the page, and its next update can throw.
   - **Stop the flicker before the JS runs.** The CSS hides article content and React's dropdowns from the first paint, the same job A/B tools do with "anti-flicker" snippets.
-  - **Re-runs and clean-up.** Tools re-run variants, so each script destroys its previous copy (elements, listeners, observers, timers) before building again.
+  - **Re-runs and clean-up.** Tools re-run variants, so each script destroys its previous copy (elements, listeners, observers, timers) before building again. That includes work still in flight: if Task 3 is re-run while PokeAPI answers are on their way, the old run's answers are ignored when they arrive (its `AbortController` is already aborted). Before that fix, a quick double run left two "no Pokémon" messages, which a test now checks.
   - **Never cover the page's own calls to action.** A variant that hides the original's main button (here, the sticky "Let's Talk" on phones) loses its clicks for reasons that have nothing to do with what's being tested, and the result is wrong. Check what's already fixed to the screen at every width before placing anything there.
   - **Work with the site's own scripts, not against them.** Lenis's opt-out CSS swallowed scrolling over the drawer until the opt-out was limited to when it's needed. Cookiebot's button stays above the drawer so consent stays reachable. The WP Rocket lazy rendering is handled by re-measuring before closing.
 - **The pixel button (Figure 1)** is drawn with a single `box-shadow` list:
@@ -98,7 +98,7 @@ Each task has two files:
 
 ## How I tested
 
-All three tasks are covered by **110 automated browser tests** ([tests/](tests/)), written against the brief rather than against my code.
+All three tasks are covered by **112 automated browser tests** ([tests/](tests/)), written against the brief rather than against my code.
 
 ```bash
 npm install

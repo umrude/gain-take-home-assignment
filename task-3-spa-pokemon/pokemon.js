@@ -260,7 +260,10 @@
 
   function selectedType() {
     try {
-      return sessionStorage.getItem(STORAGE_KEY) || '';
+      const type = sessionStorage.getItem(STORAGE_KEY) || '';
+      // Only one of our 18 types counts; anything else stored there (edited by hand, an old
+      // version) would blank the dropdown and hide every card, so it means "no filter"
+      return TYPES.includes(type) ? type : '';
     } catch (e) {
       return '';
     }
@@ -326,6 +329,9 @@
 
     getPokemon(id)
       .then(function (p) {
+        // This run was destroyed (re-run) while the answer was on its way: leave the page to
+        // the new run. Checking the id isn't enough, the new run sets the same one again.
+        if (controller.signal.aborted) return;
         if (card.getAttribute('data-' + NS + '-id') !== String(id)) return; // card reused meanwhile
         const { name, id: pokemonId, types, stats, abilities, cries, sprites, height, weight } = p;
         const pokemonNumber = String(pokemonId).padStart(4, '0'); // 1 → "0001"
@@ -405,6 +411,7 @@
         applyTypeFilter();
       })
       .catch(function (err) {
+        if (controller.signal.aborted) return; // same as above
         console.warn('[' + NS + '] #' + id, err);
         // A visible error card, not an invisible one (the anti-flash CSS hides a card until it's ready)
         showCard(card, el('div', { class: NS + '-card ' + NS + '-card--error', text: `Couldn't load Pokémon #${id}` }));

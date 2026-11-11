@@ -232,7 +232,7 @@
   /*
    * One slide (Figure 4's card, with the brief's image on top):
    *   image → industry tag (tooltip) → title → service description → "View case study"
-   * The tag is a <button>, not a <span>, so it can be focused: the CSS tooltip (PLAN 2.6)
+   * The tag is a <button>, not a <span>, so it can be focused: the CSS tooltip (drawer.css)
    * then also opens on keyboard focus and on tap, not only on mouse hover.
    * data-tooltip holds the text the CSS shows; aria-label gives screen readers the same
    * information, because CSS-generated content isn't reliably read out.
