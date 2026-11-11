@@ -28,7 +28,7 @@ test.afterEach(async ({ gain }) => {
 });
 
 test('[PDF] The JS can be pasted into the console as is (a plain script, no modules or build step)', () => {
-  for (const task of TASK_NAMES) {
+  for (const task of [...TASK_NAMES, 'pokemon']) {
     const { js } = source(task);
     // Parses as a classic script, the way the console runs pasted code: no import/export
     expect(() => new vm.Script(js, { filename: task + '.js' }), task).not.toThrow();

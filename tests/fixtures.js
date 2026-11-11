@@ -1,7 +1,9 @@
 /**
  * Shared test setup. Every test gets:
- *  - the homepage replayed offline from the recording (tests/record.js), so no request
- *    reaches GAIN; anything not in the recording is aborted;
+ *  - the homepage (or, with test.use({ site: 'blog' }), the blog) replayed offline from the
+ *    recording (tests/record.js), so no request reaches GAIN; anything not in the
+ *    recording is aborted;
+ *  - a fake PokeAPI (`pokeapi`, below), so Task 3 runs offline on data the tests know;
  *  - `gain`, a helper for injecting the tasks and reading the page.
  *
  * Injection follows the brief:
@@ -15,12 +17,42 @@
 const fs = require('fs');
 const path = require('path');
 const base = require('@playwright/test');
-const { HAR, HOME, ROOT } = require('./paths');
+const { HAR, HAR_BLOG, HOME, BLOG, ROOT } = require('./paths');
 
 const TASKS = {
   questionnaire: { dir: 'task-1-questionnaire', js: 'questionnaire.js', css: 'questionnaire.css', root: '.gq-section' },
-  drawer: { dir: 'task-2-footer-drawer', js: 'drawer.js', css: 'drawer.css', root: '.gd-slide' }
+  drawer: { dir: 'task-2-footer-drawer', js: 'drawer.js', css: 'drawer.css', root: '.gd-slide' },
+  pokemon: { dir: 'task-3-spa-pokemon', js: 'pokemon.js', css: 'pokemon.css', root: '.gp-card' }
 };
+const SITES = { home: { url: HOME, har: HAR }, blog: { url: BLOG, har: HAR_BLOG } };
+
+/*
+ * The fake PokeAPI. Made-up but predictable, so a test can work out what each card should
+ * show: every 4th Pokémon is Fire, other odd ones Grass/Poison, other even ones Water,
+ * and nothing is Dragon (for the "none of this type" message). The artwork is a data: URL,
+ * so images "load" without any network.
+ */
+function fakeTypes(id) {
+  if (id % 4 === 0) return ['fire'];
+  return id % 2 ? ['grass', 'poison'] : ['water'];
+}
+function fakePokemon(id) {
+  const art = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" id="art-${id}"/>`);
+  return {
+    id,
+    name: 'testmon-' + id,
+    height: 7,
+    weight: 69,
+    abilities: [{ ability: { name: 'swift-swim' } }],
+    cries: {},
+    sprites: { front_default: '', other: { 'official-artwork': { front_default: art } } },
+    stats: ['hp', 'attack', 'defense', 'special-attack', 'special-defense', 'speed'].map((name, i) => ({
+      base_stat: 40 + i * 10,
+      stat: { name }
+    })),
+    types: fakeTypes(id).map((name, i) => ({ slot: i + 1, type: { name } }))
+  };
+}
 
 function source(task) {
   const t = TASKS[task];
@@ -31,11 +63,12 @@ function source(task) {
 }
 
 // Runs in the page before anything else: records fetch/XHR calls whose stack includes one
-// of our scripts. Tasks 1 and 2 must read everything from the page and fetch nothing.
+// of our scripts, as "task: kind url". Tasks 1 and 2 must fetch nothing; Task 3 only PokeAPI.
 function networkSpy() {
   window.__gainNetwork = [];
   const ours = (kind, url) => {
-    if (/gain-(questionnaire|drawer)\.js/.test(new Error().stack || '')) window.__gainNetwork.push(kind + ' ' + url);
+    const m = (new Error().stack || '').match(/gain-(questionnaire|drawer|pokemon)\.js/);
+    if (m) window.__gainNetwork.push(m[1] + ': ' + kind + ' ' + url);
   };
   const fetch = window.fetch;
   window.fetch = function (input) {
@@ -101,25 +134,55 @@ function readHomepage() {
 }
 
 const test = base.test.extend({
-  // Replay the recorded site for every page in the test
-  context: async ({ context }, use) => {
-    await context.routeFromHAR(HAR, { notFound: 'abort' });
+  // Which recorded page this test runs on: test.use({ site: 'blog' }) for Task 3
+  site: ['home', { option: true }],
+
+  /*
+   * Controls for the fake PokeAPI, per test: `requests` lists every id asked for,
+   * add an id to `failing` to make it answer 500, set `delay` (ms) to slow every answer.
+   */
+  pokeapi: async ({}, use) => {
+    await use({ requests: [], failing: new Set(), delay: 0 });
+  },
+
+  // Replay the recorded site for every page in the test; PokeAPI is answered by the fake
+  context: async ({ context, site, pokeapi }, use) => {
+    await context.routeFromHAR(SITES[site].har, { notFound: 'abort' });
+    await context.route('https://pokeapi.co/**', async (route) => {
+      const id = Number(
+        route
+          .request()
+          .url()
+          .match(/\/pokemon\/(\d+)\/?$/)[1]
+      );
+      pokeapi.requests.push(id);
+      if (pokeapi.delay) await new Promise((r) => setTimeout(r, pokeapi.delay));
+      const headers = { 'access-control-allow-origin': '*' };
+      if (pokeapi.failing.has(id)) return route.fulfill({ status: 500, headers, body: 'error' });
+      return route.fulfill({ json: fakePokemon(id), headers }).catch(() => {}); // page may have closed meanwhile
+    });
     await use(context);
   },
 
-  gain: async ({ page }, use) => {
+  gain: async ({ page, site }, use) => {
     const errors = [];
     // Our scripts' uncaught errors (traced by sourceURL), and their console warnings
     // ("[gq] waitFor timeout"); the site's own errors are not ours to fail on.
-    page.on('pageerror', (e) => /gain-(questionnaire|drawer)\.js/.test(e.stack || '') && errors.push(e.message));
-    page.on('console', (m) => /^\[(gq|gd)\]/.test(m.text()) && errors.push(m.text()));
+    page.on(
+      'pageerror',
+      (e) => /gain-(questionnaire|drawer|pokemon)\.js/.test(e.stack || '') && errors.push(e.message)
+    );
+    page.on('console', (m) => /^\[(gq|gd|gp)\]/.test(m.text()) && errors.push(m.text()));
     await page.addInitScript(networkSpy);
 
     const gain = {
       errors,
 
-      /** Load the homepage with the given tasks injected after load (default) or at document-start. */
-      async open(tasks, { timing = 'ready' } = {}) {
+      /**
+       * Load the page (the homepage, or the blog with site: 'blog'; `url` for another one)
+       * with the given tasks injected after load (default) or at document-start.
+       */
+      async open(tasks, { timing = 'ready', url = SITES[site].url } = {}) {
         if (timing === 'start') {
           for (const task of tasks) {
             const { js, css } = source(task);
@@ -139,7 +202,7 @@ const test = base.test.extend({
             );
           }
         }
-        await page.goto(HOME, { waitUntil: 'load' });
+        await page.goto(url, { waitUntil: 'load' });
         await gain.dismissCookieBanner();
         if (timing === 'ready') for (const task of tasks) await gain.inject(task);
         for (const task of tasks) await gain.settled(TASKS[task].root);
@@ -181,11 +244,19 @@ const test = base.test.extend({
       },
 
       readHomepage: () => page.evaluate(readHomepage),
-      network: () => page.evaluate(() => window.__gainNetwork),
+      /** Requests made by our scripts, as "kind url"; only those of `tasks` (default: Tasks 1 and 2) */
+      network: (tasks = ['questionnaire', 'drawer']) =>
+        page.evaluate(
+          (tasks) =>
+            window.__gainNetwork
+              .filter((entry) => tasks.includes(entry.split(':')[0]))
+              .map((entry) => entry.slice(entry.indexOf(': ') + 2)),
+          tasks
+        ),
       source
     };
     await use(gain);
   }
 });
 
-module.exports = { test, expect: base.expect, TASKS, source };
+module.exports = { test, expect: base.expect, TASKS, source, fakePokemon, fakeTypes };

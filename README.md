@@ -59,6 +59,14 @@ Each task has two files:
   - **Moving between steps:** Back, Next and "Change" all go through `goTo()`. It refuses to move past an unanswered step, so the rule holds even if the disabled Next button is re-enabled in DevTools.
   - **Results:** `computeResults()` is a pure function of the answers and the scraped data, so it can be tested from the console without touching the DOM:
     `__gainQuestionnaire.computeResults({ services: ['Experience'], industries: ['Retail'], useful: 'cases', timing: 'now' }, __gainQuestionnaire.data)`
+- **How the Pokémon blog is built (Task 3):**
+  - **"Turn the Filter by Capability dropdown into Filter by type":** React's capability dropdown is hidden with CSS, and our own "Filter by type" dropdown is inserted directly after it, so it appears in exactly the same place. I didn't edit React's dropdown in place. It's React's own element (with `value` and `onChange` props), and changing it sends `POST admin-ajax.php?action=list_results` and swaps the whole article list. Picking "Fire" there would ask the server for articles with the capability "fire" and replace the cards, but the brief asks for "only the Pokémon of that type **on the current page**". Stopping that would need `stopPropagation` (see below), and React would reset its own value and options the next time it redraws. Ours is invisible to React, so the visible result is what the brief describes: where "Filter by Capability" was, there's "Filter by type" with the 18 regular types.
+  - **Filtering only hides cards.** It adds a class to the `<li>`s that don't match, so nothing is rebuilt and flipped cards stay flipped. The "No Fire Pokémon on this page." message sits right after React's `<ul>`, above the page numbers, and only appears once every card has loaded, so it doesn't flash while they arrive.
+  - **The chosen type** is kept in `sessionStorage` and re-applied after every redraw, so it stays selected when changing pages.
+  - **Following React's updates without history hooks.** Paging, filtering and the browser's back and forward buttons all end with React replacing the cards, and React updates the URL before it does. So one `MutationObserver` on the listing is enough: by the time it fires, the page number in the URL is already the new one. I checked this, including back and forward. Wrapping `history.pushState` would patch a global that the site and its analytics also use, to learn something the cards already tell us. Our own changes trigger the observer once more, but by then every card is done, so it settles (0 changes in the 2s after).
+  - **Flipped cards are remembered** while you're on the page (a `Set` of Pokémon numbers), because React throws the old cards away when paging. Coming back to a page, they're rebuilt already flipped, with no animation and no cry.
+  - **The 18 types are a fixed list** in the games' order. PokeAPI's `/type/` endpoint also returns `stellar`, `unknown` and `shadow`, which no Pokémon has as its type, so they'd need filtering out by a hardcoded rule anyway. A fixed list also shows the dropdown straight away, even if PokeAPI is slow.
+  - **Each Pokémon is fetched once** and cached on `window`, so paging back and re-running the script don't request it again. If a request fails, the card shows a visible error instead of staying hidden, and it's retried the next time that page is shown.
 - **Overlays and the cookie button:** the site manages consent with Cookiebot, which has a floating button at the bottom left. Consent withdrawal must stay easy to reach (UK/EU GDPR Art. 7(3)), so the two kinds of overlay are treated differently:
   - **The questionnaire modal covers the button.** It's a temporary overlay that the user opened and can dismiss (×, Esc, or a click outside). A modal should sit above the whole page, and the button is back as soon as the modal closes. Without this, the widget sat on top of the modal's Back button on mobile.
   - **The sticky drawer (Task 2) doesn't cover it.** The drawer stays on screen all the time, so it sits below Cookiebot's widget and leaves the button reachable. On phones, where the button sits at the bottom left, the drawer leaves empty space under the cards for it, so it doesn't cover "View case study". On tablet and desktop the site floats it higher (about 130px up), where it covers the first few letters of the first card's description. That's accepted on purpose: it floats over the site's own content the same way, and GAIN's consent widget isn't ours to move or restyle. The site also has a "Cookies" link in the footer.
@@ -87,7 +95,7 @@ Each task has two files:
 
 ## How I tested
 
-Tasks 1 and 2 are covered by **77 automated browser tests** ([tests/](tests/)), written against the brief rather than against my code. Task 3's tests will come with Task 3.
+All three tasks are covered by **103 automated browser tests** ([tests/](tests/)), written against the brief rather than against my code.
 
 ```bash
 npm install
@@ -101,13 +109,15 @@ This is dev tooling only: the task files still have no dependencies and no build
 - **Injected the way the brief says.** The CSS goes into `<head>` as a `<style>`. The JS runs as a plain script, the same as pasting it into the console. The document-start bonus test is harsher than Tampermonkey: it runs the scripts before `<html>` even exists.
 - **Independent expectations.** The tests read the homepage themselves (the Solutions menu, Our Sectors, the Work and Insights sliders, the footer email). Expected results come from the brief's rules, never from the scripts' own logic. Two tests **edit the homepage before the scripts run**: they rename a service, add a sector, retitle a case study and change the email. They then check that the questionnaire and the drawer follow the edits, which hardcoded values wouldn't.
 - **Visual details checked on real pixels.** For Figure 1, the tests sample the rendered button in each state. They check for the lighter top strip, the darker bottom shadow, the dark outline, the notched corners and the square blue focus ring, and that Pressed has no strip or shadow. Animations are checked mid-way, so the chevron must be part-turned and the drawer part-way up 120ms after a click. Screenshot baselines of the button states, the progress bar, the closed tab and the tooltip were approved by eye. Any later change fails the test. On another OS, with different font rendering, they're created on the first run.
-- **Every requirement is named.** Each test title quotes the requirement it checks and is tagged `[README]` (a checklist item), `[PDF]` (in the brief but not the checklist), `[Bonus]` or `[Extra]` (beyond the brief). Every Task 1 and Task 2 checklist item has at least one test named after it. `npx playwright test --list` prints the full map. The `[PDF]` ones:
+- **Every requirement is named.** Each test title quotes the requirement it checks and is tagged `[README]` (a checklist item), `[PDF]` (in the brief but not the checklist), `[Bonus]` or `[Extra]` (beyond the brief). Every checklist item has at least one test named after it. `npx playwright test --list` prints the full map. The `[PDF]` ones:
   - the JS pastes into the console as is (a classic script, no modules), and the CSS is separate and goes into `<head>`;
   - nothing is fetched (a spy on `fetch` and XHR, traced to our scripts);
   - the section sits directly under the hero, and the button is one button with five states;
   - questions 3 and 4 use the brief's exact wording, and the email comes from the footer;
   - the drawer is fixed to the bottom while scrolling, with only the centred tab showing when hidden (Figure 3);
-  - the slide description comes from the Solutions menu.
+  - the slide description comes from the Solutions menu;
+  - Task 3: the article content is gone and clicking a card doesn't open the article; opening `/blog/page/2/` directly starts at #13; only PokeAPI is fetched, once per Pokémon.
+- **Task 3 runs against a fake PokeAPI.** The blog is replayed from the recording, so React's real pagination and back/forward run, but PokeAPI answers with made-up Pokémon whose types follow a simple rule (every 4th is Fire, nothing is Dragon). So each test knows exactly which cards a filter should leave, and one test makes a Pokémon fail to check the error card. The no-flash test checks every frame, from before the page exists, while paging and filtering with PokeAPI slowed to 400ms, that no article content and neither of React's dropdowns is ever visible.
 - **The tests can fail.** I checked this by breaking three things on purpose: Pressed keeping its top strip, the chevron losing its animation, and the results showing 4 case studies. Each was caught by the test named after that requirement.
 
 What the suite found, beyond what I'd checked by hand:
@@ -166,15 +176,15 @@ What the suite found, beyond what I'd checked by hand:
 
 ### 3. SPA DOM Manipulation (https://www.thisisgain.com/blog/)
 
-- [ ] Uses Flex or Grid CSS
-- [ ] Works on desktop, tablet and mobile (down to 375px)
-- [ ] Every article card shows a Pokémon (image, name, types) based on its position
-- [ ] No article content flashes before the Pokémon appear (paging and filtering too)
-- [ ] Pokémon numbers follow the page (page 2 starts at #13)
-- [ ] "Filter by Tags" hidden, and "Filter by type" lists the 18 regular types and filters the current page, with an empty message
-- [ ] The chosen type stays selected when changing pages
-- [ ] Clicking a Pokémon card flips it to show more details, and still works after paging or filtering
-- [ ] All changes persist through the type filter and paging
+- [x] Uses Flex or Grid CSS
+- [x] Works on desktop, tablet and mobile (down to 375px)
+- [x] Every article card shows a Pokémon (image, name, types) based on its position
+- [x] No article content flashes before the Pokémon appear (paging and filtering too)
+- [x] Pokémon numbers follow the page (page 2 starts at #13)
+- [x] "Filter by Tags" hidden, and "Filter by type" lists the 18 regular types and filters the current page, with an empty message
+- [x] The chosen type stays selected when changing pages
+- [x] Clicking a Pokémon card flips it to show more details, and still works after paging or filtering
+- [x] All changes persist through the type filter and paging
 
 ### Bonus
 
