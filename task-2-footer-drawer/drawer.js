@@ -517,15 +517,46 @@
     on(track, 'pointercancel', endDrag);
   }
 
+  /* ---------------------------------------------------------------- close at the bottom */
   /*
-   * Close when the user scrolls to the bottom of the page.
-   * Gotcha: the site lazy-renders sections and the footer (WP Rocket, content-visibility:
-   * auto), so scrollHeight grows as they render — test that it closes at the real bottom,
-   * not early. Lenis scrolls with window.scrollTo, which still fires `scroll`.
+   * "The drawer should close automatically when scrolling hits the bottom of the page."
+   *
+   * 1. Edge-triggered: we react when the user ARRIVES at the bottom (wasAtBottom goes
+   *    false → true), not whenever they're there. So opening the drawer while already at
+   *    the bottom doesn't close it again straight away; scrolling up and back down does.
+   *
+   * 2. Confirmed after a pause (BOTTOM_CONFIRM_MS). The site lazy-renders the footer and
+   *    some sections (WP Rocket: [data-wpr-lazyrender] { content-visibility: auto }, with no
+   *    placeholder size), so an unrendered footer is 0px tall. Jumping to the end (End key,
+   *    scrollbar) lands on a fake "bottom"; ~1–3 frames later the footer renders, the page
+   *    grows by 700–1500px, and the user is no longer at the bottom. Measured in Edge:
+   *    the height changes 15–100ms after landing. So: wait, re-measure, and only close
+   *    if it's still the bottom. (The pause also stops it vanishing mid-flick.)
+   *
+   * Lenis scrolls the page with window.scrollTo, which still fires `scroll`, so this
+   * works with the site's smooth scrolling.
    */
-  function closeAtPageBottom() {
-    const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
-    if (atBottom && isOpen) setOpen(false);
+  const BOTTOM_CONFIRM_MS = 300;
+  let wasAtBottom = false;
+  let bottomTimer = null;
+
+  // 2px slack: scrollY can be fractional (zoom, high-DPI, Lenis easing).
+  function isAtBottom() {
+    return window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+  }
+
+  function onPageScroll() {
+    const atBottom = isAtBottom();
+    if (atBottom && !wasAtBottom) {
+      clearTimeout(bottomTimer);
+      bottomTimer = setTimeout(function () {
+        // Fresh measurement: if the footer rendered meanwhile, the page grew and this is false.
+        // It also re-syncs wasAtBottom, because a page that grows doesn't fire `scroll`.
+        wasAtBottom = isAtBottom();
+        if (wasAtBottom && isOpen) setOpen(false);
+      }, BOTTOM_CONFIRM_MS);
+    }
+    wasAtBottom = atBottom;
   }
 
   /* ---------------------------------------------------------------- lifecycle */
@@ -534,6 +565,7 @@
   // (inert/aria-expanded live on our own elements, so removing them removes those too.)
   function destroy() {
     controller.abort();
+    clearTimeout(bottomTimer); // a pending close would toggle <html>'s class after teardown
     document.querySelectorAll('[data-gain="' + NS + '"]').forEach(function (n) {
       n.remove();
     });
@@ -602,7 +634,8 @@
       enableDrag(root.track);
       updateCounter();
 
-      on(window, 'scroll', closeAtPageBottom, { passive: true });
+      wasAtBottom = isAtBottom(); // so a script run at the bottom doesn't count as "arriving"
+      on(window, 'scroll', onPageScroll, { passive: true });
     })
     .catch(function (err) {
       console.warn('[' + NS + ']', err);

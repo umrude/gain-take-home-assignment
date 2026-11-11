@@ -43,6 +43,7 @@ Each task has two files:
   - Work card industry tags don't always match the "Our Sectors" names ("Tech & Telcoms" vs "Tech & Telco"). Tags are mapped to the closest sector name.
   - The Insights cards have no dates. Slider order (newest first) is used as "latest".
   - The site smooth-scrolls with Lenis, which scrolls the page from JavaScript, so `overflow: hidden` alone doesn't lock the page behind the modal. The page's Lenis instance isn't exposed (`window.lenis` only holds the version), so overlays use Lenis's own opt-out attribute, `data-lenis-prevent`. Lenis then ignores wheel and touch events from inside them.
+  - The footer and some sections are lazy-rendered by WP Rocket (`content-visibility: auto` with no placeholder size), so until they render they're 0px tall. Jumping to the end of the page (End key, scrollbar) lands on a "bottom" that moves 700–1500px further down a few frames later. The drawer therefore waits 300ms after reaching the bottom, measures again, and only closes if it's still the bottom.
 - **Matching GAIN's look (Tasks 1 and 2):** wherever the brief doesn't set a style, the styles use the site's own design tokens:
   - colours: not-black `#001400`, growth green `#00FF7F` and white
   - fonts: Inter Tight for headings, uppercase Anonymous Pro for labels and buttons
