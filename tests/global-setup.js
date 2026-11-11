@@ -1,8 +1,4 @@
-// Before the first run (e.g. on a fresh clone), record the homepage once.
-const fs = require('fs');
-const { HAR } = require('./paths');
-const record = require('./record');
+// Before a run, record any page that hasn't been recorded yet (e.g. on a fresh clone).
+const recordAll = require('./record');
 
-module.exports = async () => {
-  if (!fs.existsSync(HAR)) await record();
-};
+module.exports = () => recordAll(undefined, { missingOnly: true });

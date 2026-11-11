@@ -385,23 +385,47 @@
   }
 
   /*
-   * Click on a card: flip it instead of opening the article. Capture phase (see the
-   * listener), so this runs before React's own link handling.
+   * Flips a card to its other side; flipping to the back plays the cry. Takes no event,
+   * so it can also be called on its own (e.g. from the console or a test).
    * The class is prefixed (gp-card--flipped), not a generic `is-flipped`: in Task 2 an
    * unprefixed `is-open` picked up a rule from the site's own CSS and turned a tooltip
-   * upside down. aria-pressed tells screen readers the card is showing its details.
-   * Flipping to the back also plays the Pokémon's cry.
-   * TODO (PLAN 3.3): also flip on Enter/Space when the card has focus (keydown).
+   * upside down. aria-pressed tells screen readers which side is showing.
    */
-  function onListClick(e) {
-    const card = e.target.closest('.' + NS + '-card');
-    if (!card || card.classList.contains(NS + '-card--error')) return;
-    e.preventDefault();
-    e.stopPropagation();
+  function flipCard(card) {
     const flipped = card.classList.toggle(NS + '-card--flipped');
     card.setAttribute('aria-pressed', String(flipped));
     const cry = card.getAttribute('data-' + NS + '-cry');
     if (cry && flipped) playAudio(cry);
+  }
+
+  /*
+   * Click on a card: flip it. Error cards don't flip.
+   * Nothing needs blocking, so no preventDefault/stopPropagation. The article link is
+   * hidden (CSS), so the click lands on OUR card, which isn't inside the link; and React
+   * has no click handlers on the cards (checked: the <li> and link have React props but no
+   * onClick; the page's only React root is the filters). Not stopping propagation matters
+   * on a site running A/B tests: the site's own `document` click listeners (analytics, tag
+   * managers) keep seeing card clicks, so the variant is measured like the original.
+   * (Verified: with stopPropagation they saw 0 clicks, without it 1; flip and URL the same.)
+   */
+  function onListClick(e) {
+    const card = e.target.closest('.' + NS + '-card');
+    if (!card || card.classList.contains(NS + '-card--error')) return;
+    flipCard(card);
+  }
+
+  /*
+   * Keyboard: the card has role="button", so it must act like one. Enter and Space flip
+   * it when the card itself has focus. preventDefault IS needed here: it stops Space from
+   * scrolling the page. Propagation is left alone, as for clicks.
+   * `e.repeat` ignores a held-down key, which would otherwise flip it ~30 times a second.
+   */
+  function onListKeyDown(e) {
+    if (e.repeat || (e.key !== 'Enter' && e.key !== ' ')) return;
+    const card = e.target.closest('.' + NS + '-card');
+    if (!card || e.target !== card || card.classList.contains(NS + '-card--error')) return;
+    e.preventDefault();
+    flipCard(card);
   }
 
   /* ---------------------------------------------------------------- SPA watching */
@@ -464,7 +488,9 @@
       processList();
       observe(root);
       hookHistory();
-      on(root, 'click', onListClick, { capture: true }); // capture: beat React's link handler
+      // One listener each on the wrapper (event delegation), so cards React adds later work too
+      on(root, 'click', onListClick);
+      on(root, 'keydown', onListKeyDown);
     })
     .catch(function (err) {
       console.warn('[' + NS + ']', err);
