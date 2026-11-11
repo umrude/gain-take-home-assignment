@@ -215,6 +215,28 @@ test('[README] "Filter by Tags" hidden, and "Filter by type" lists the 18 regula
   expect(options.slice(1)).toEqual(TYPES.split(' ').map((t) => [t, capitalise(t)]));
 });
 
+test('[Extra] React\'s "sector" and "category" filters, seen on the live blog, are hidden too', async ({
+  page,
+  gain
+}) => {
+  await gain.open(['pokemon']);
+  await pageReady(page, 1);
+  // The recording only has post_tag and capability, so add the two the live blog had (11 Nov)
+  // where React puts its dropdowns
+  await page.evaluate(() => {
+    const capability = document.querySelector('select[name="capability"]');
+    for (const name of ['sector', 'category']) {
+      const select = document.createElement('select');
+      select.name = name;
+      select.append(new Option('Filter by ' + name, ''));
+      capability.parentElement.append(select);
+    }
+  });
+  await expect(page.locator('select[name="sector"]')).toBeHidden();
+  await expect(page.locator('select[name="category"]')).toBeHidden();
+  await expect(typeFilter(page)).toBeVisible();
+});
+
 test('[README] "Filter by type" filters the current page only, with an empty message', async ({ page, gain }) => {
   await gain.open(['pokemon']);
   await pageReady(page, 1);

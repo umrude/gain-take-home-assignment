@@ -113,8 +113,8 @@ html.gq-lock {
  *   single edge, and the corners stay uncovered, which gives the pixel-art notch.
  * - Lighter strip along the top / darker shadow along the bottom: two inset shadows.
  * - Pressed: both inset colours become the fill colour, so it looks pushed in.
- * - Focus: a square blue `outline` sitting just outside the dark outline.
- *   `outline` doesn't change the layout, and (unlike a shadow) it isn't removed in forced-colors mode.
+ * - Focus: a square blue outline sitting just outside the dark outline.
+ *   An outline doesn't change the layout, and (unlike a shadow) it isn't removed in forced-colors mode.
  */
 .gq-btn {
   --bg: #5c9b3a; /* fill */
@@ -388,7 +388,7 @@ html.gq-lock {
 }
 
 /*
- * Icon: an SVG used as a mask, so it's drawn in `background-color` and can change
+ * Icon: an SVG used as a mask, so it's drawn in background-color and can change
  * colour per state (blue on white, white on blue). Centred on the circle.
  * Icons are Feather-style strokes; which one is picked by the item's data-step.
  */

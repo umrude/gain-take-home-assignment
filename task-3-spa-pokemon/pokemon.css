@@ -48,9 +48,15 @@
 }
 
 /*
- * Hide React's two dropdowns: "Filter by Tags" (the brief), and "Filter by Capability",
- * which our own "Filter by type" <select> replaces (pokemon.js setupFilters). In CSS, so
- * they're hidden from the first paint, like the cards. Selected by their form `name`.
+ * Hide React's filter dropdowns. In CSS, so they're hidden from the first paint, like the
+ * cards. Selected by their form name:
+ * - post_tag: "Filter by Tags" (the brief)
+ * - capability: "Filter by Capability", which our own "Filter by type" <select> replaces
+ *   (pokemon.js setupFilters)
+ * - sector, category: not on the blog when the tests' recording was made, but there on the
+ *   live blog on 11 Nov (seen in a full run from a fresh clone). React builds the dropdowns
+ *   from a list of filters the server sends, so the set can change. These would filter the
+ *   articles behind the Pokémon, so they're hidden too.
  */
 [data-behaviour='listing-filters'] select[name='post_tag'],
 [data-behaviour='listing-filters'] select[name='capability'],

@@ -37,6 +37,22 @@ test('[PDF] The JS can be pasted into the console as is (a plain script, no modu
   // Each one runs on its own in the browser: see the other tests, which inject them separately
 });
 
+test("[PDF] The CSS can be injected into <head> with the README's console snippet, pasted in as is", () => {
+  const readme = require('fs').readFileSync(require('path').join(__dirname, '..', 'README.md'), 'utf8');
+  const snippet = (readme.match(/```js\n([^`]*insertAdjacentHTML[\s\S]*?)```/) || [])[1];
+  expect(snippet, 'the README has a CSS snippet').toBeTruthy();
+  for (const task of [...TASK_NAMES, 'pokemon']) {
+    const { css } = source(task);
+    // A backtick would end the template literal early, and an escape like '\2713' is a SyntaxError
+    // in a plain one (String.raw allows it). Run the snippet with the file pasted in, as a reviewer would.
+    let added = null;
+    const document = { head: { insertAdjacentHTML: (_, html) => (added = html) } };
+    const code = snippet.trim().replace('/* CSS here */', () => css);
+    expect(() => vm.runInNewContext(code, { document }), task).not.toThrow();
+    expect(added, task).toBe('<style id="gain-css-task-N">' + css + '</style>');
+  }
+});
+
 test('[PDF] The CSS is a separate file, injected into <head>; the JS adds no styles or libraries', async ({
   page,
   gain
