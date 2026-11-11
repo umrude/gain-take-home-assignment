@@ -66,6 +66,11 @@ Each task has two files:
   On a real client site, I'd check this with whoever owns the consent setup.
 
 - **Hover styles inside the modal** are wrapped in `@media (hover: hover)`. Otherwise, on touch screens, `:hover` sticks to the last tapped button (for example, Back stays black after tapping it). The pixel button keeps its plain `:hover`, because Figure 1 requires that state.
+- **The drawer's tooltip (Figure 5) when space is tight:** the slider scrolls sideways, so it cuts off anything that sticks out of it, and a bubble centred over the tag (as in Figure 5) would be clipped on the first slide. Instead:
+  - The bubble is left-aligned to the tag, which always sits at the slide's left edge, and its arrow is centred on the tag.
+  - Its width is capped to the slide with container query units (`100cqi`), so long text wraps inside the slide rather than overflowing. No JS measuring.
+  - It opens upward over the image, which has a fixed 16:10 shape, so there's always room. A slide without an image flips it below the tag (`:has()`).
+  - Touch has no hover, and Safari doesn't focus a button when it's tapped, so tapping the tag toggles the tooltip. Tapping elsewhere, Esc, scrolling the slider or closing the drawer hides it. Mouse hover and keyboard focus are CSS-only.
 - **The pixel button (Figure 1)** is drawn with a single `box-shadow` list:
   - four outer shadows, each offset by one pixel, draw the dark outline with stepped corners
   - two inset shadows draw the top strip and the bottom shadow

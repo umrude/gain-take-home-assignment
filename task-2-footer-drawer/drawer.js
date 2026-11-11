@@ -356,6 +356,32 @@
     root.toggle.setAttribute('aria-expanded', String(open));
     if (!open && root.panel.contains(document.activeElement)) root.toggle.focus();
     root.panel.inert = !open;
+    if (!open) setTip(null);
+  }
+
+  /* ---------------------------------------------------------------- tooltip (tap) */
+  /*
+   * The tooltip itself is CSS (drawer.css). Hover and keyboard focus need no JS; this is
+   * for touch, which has no hover, and for Safari, which doesn't focus a button on tap.
+   * Tapping a tag adds .is-open, which the CSS shows like hover. Same pattern as setOpen:
+   * one variable (openTip) and one function that changes it.
+   * Closed by: tapping it again, tapping anywhere else, Esc, scrolling the slider, or
+   * closing the drawer.
+   */
+  let openTip = null; // the tag whose tooltip is showing, or null
+
+  function setTip(tag) {
+    if (openTip) openTip.classList.remove('is-open');
+    openTip = tag;
+    if (tag) tag.classList.add('is-open');
+  }
+
+  // One listener on document handles both "tap a tag" and "tap anywhere else".
+  // (The click that ends a mouse drag is stopped at the track, so it never gets here.)
+  function onDocumentClick(e) {
+    const tag = e.target.closest ? e.target.closest('.' + NS + '-tag') : null;
+    if (tag) setTip(tag === openTip ? null : tag);
+    else if (openTip) setTip(null);
   }
 
   /* ---------------------------------------------------------------- slider */
@@ -604,9 +630,13 @@
       on(root.overlay, 'click', function () {
         setOpen(false);
       });
+      // Esc dismisses the top-most thing: an open tooltip first, then the drawer
       on(document, 'keydown', function (e) {
-        if (e.key === 'Escape' && isOpen) setOpen(false);
+        if (e.key !== 'Escape') return;
+        if (openTip) setTip(null);
+        else if (isOpen) setOpen(false);
       });
+      on(document, 'click', onDocumentClick);
 
       // Slider: arrows → goToPage; any scroll (arrows, drag, swipe, trackpad) → counter
       on(root.prev, 'click', function () {
@@ -621,6 +651,7 @@
         root.track,
         'scroll',
         function () {
+          if (openTip) setTip(null); // the slide it belongs to is moving away
           if (counterQueued) return;
           counterQueued = true;
           requestAnimationFrame(function () {
